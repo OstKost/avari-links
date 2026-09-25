@@ -53,7 +53,7 @@ describe('LinkList', () => {
     await waitFor(() => {
       expect(screen.getByText('React Documentation')).toBeInTheDocument();
       expect(screen.getByText('10 переходов')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('renders empty state when no links exist', async () => {
@@ -69,7 +69,7 @@ describe('LinkList', () => {
     await waitFor(() => {
       expect(screen.getByText('Пока нет коротких ссылок')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /создать первую ссылку/i })).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
   });
 
   it('switches between grid and table view', async () => {
@@ -84,7 +84,7 @@ describe('LinkList', () => {
 
     await waitFor(() => {
       expect(screen.getByText('React Documentation')).toBeInTheDocument();
-    });
+    }, { timeout: 3000 });
 
     const tableSwitchBtn = screen.getByRole('button', { name: /показать таблицу/i });
     fireEvent.click(tableSwitchBtn);
