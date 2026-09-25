@@ -3,6 +3,7 @@ import { screen, fireEvent, waitFor } from '@testing-library/react';
 import { LinkTable } from './LinkTable';
 import { renderWithProviders } from '@/test/test-utils';
 import { linkApi } from '@/entities/link/api';
+import { useAppStore } from '@/shared/store/app-store';
 import type { Link } from '@/entities/link/types';
 
 vi.mock('@/entities/link/api', () => ({
@@ -42,6 +43,9 @@ const mockLinks: Link[] = [
 describe('LinkTable', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.setState({
+      language: 'ru',
+    });
   });
 
   it('renders table columns and link rows', () => {

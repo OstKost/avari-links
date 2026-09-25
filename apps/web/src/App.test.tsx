@@ -27,6 +27,7 @@ describe('App Integration', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAppStore.setState({
+      language: 'ru',
       theme: 'dark',
       searchQuery: '',
       viewMode: 'grid',

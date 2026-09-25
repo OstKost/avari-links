@@ -31,6 +31,7 @@ describe('LinkList', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     useAppStore.setState({
+      language: 'ru',
       sessionKey: 'valid-session-key',
       viewMode: 'grid',
     });

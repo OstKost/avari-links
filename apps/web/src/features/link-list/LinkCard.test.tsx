@@ -29,6 +29,9 @@ const mockLink: Link = {
 describe('LinkCard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAppStore.setState({
+      language: 'ru',
+    });
   });
 
   it('renders link details including title, short URL, destination, clicks and badges', () => {
