@@ -217,73 +217,12 @@ jobs:
 
       - name: Deploy to Server via SSH
         env:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST || '157.22.252.225' }}
-          SERVER_USER: ${{ secrets.SERVER_USER || 'root' }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
-        if: env.SSH_PRIVATE_KEY != ''
+          SSH_KEY: /home/runner/.ssh/id_deploy
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT }}
         run: |
           mkdir -p ~/.ssh
-          echo "$SSH_PRIVATE_KEY" > ~/.ssh/id_deploy
+          echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_deploy
           chmod 600 ~/.ssh/id_deploy
-          
-          # Prepare deploy package
-          TEMP_DIR=$(mktemp -d)
-          mkdir -p "${TEMP_DIR}/web"
-          cp -r apps/web/dist/* "${TEMP_DIR}/web/"
-          cp bin/avari-api-linux-amd64 "${TEMP_DIR}/avari-links"
-          cp deployments/systemd/avari-links.service "${TEMP_DIR}/avari-links.service"
-          
-          SSH_OPTS="-p ${SERVER_PORT} -o StrictHostKeyChecking=no -i /home/runner/.ssh/id_deploy"
-          
-          tar -czf - -C "${TEMP_DIR}" avari-links avari-links.service web | ssh ${SSH_OPTS} "${SERVER_USER}@${SERVER_HOST}" "
-          set -euo pipefail
-          REMOTE_TMP=\$(mktemp -d)
-          trap 'rm -rf \"\${REMOTE_TMP}\"' EXIT
-
-          tar -xzf - -C \"\${REMOTE_TMP}\"
-
-          mkdir -p /opt/avari-links/data /var/www/avari-links/frontend /etc/systemd/system
-          chmod +x \"\${REMOTE_TMP}/avari-links\"
-          mv \"\${REMOTE_TMP}/avari-links\" /usr/local/bin/avari-links
-
-          rm -rf /var/www/avari-links/frontend/*
-          cp -r \"\${REMOTE_TMP}/web/\"* /var/www/avari-links/frontend/
-
-          cp \"\${REMOTE_TMP}/avari-links.service\" /etc/systemd/system/avari-links.service
-          systemctl daemon-reload
-          systemctl enable avari-links.service
-          systemctl restart avari-links.service
-
-          if ! grep -q 'links.avari.dev' /etc/caddy/Caddyfile; then
-              cat << 'CADDY_EOF' >> /etc/caddy/Caddyfile
-
-# Avari Links (URL Shortener & Analytics)
-links.avari.dev, http://links.avari.dev {
-    handle /api/* {
-        reverse_proxy localhost:4820
-    }
-    handle /s/* {
-        reverse_proxy localhost:4820
-    }
-    handle /healthz {
-        reverse_proxy localhost:4820
-    }
-    handle /swagger/* {
-        reverse_proxy localhost:4820
-    }
-    handle {
-        root * /var/www/avari-links/frontend
-        try_files {path} /index.html
-        file_server
-    }
-    encode gzip zstd
-}
-CADDY_EOF
-          fi
-
-          caddy reload --config /etc/caddy/Caddyfile
-          sleep 2
-          systemctl is-active avari-links.service
-          curl -s -f http://127.0.0.1:4820/healthz
-          "
+          ./scripts/deploy.sh
