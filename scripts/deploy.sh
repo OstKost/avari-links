@@ -23,7 +23,7 @@ mkdir -p bin
 
 # 2. Build Frontend bundle
 echo "===> Building Web bundle..."
-(cd apps/web && pnpm run build)
+(cd apps/web && pnpm install --frozen-lockfile && pnpm run build)
 
 # 3. Create deploy package in temp directory
 TEMP_DIR=$(mktemp -d)

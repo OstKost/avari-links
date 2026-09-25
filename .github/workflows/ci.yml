@@ -192,6 +192,10 @@ jobs:
           corepack enable
           corepack prepare pnpm@9.15.5 --activate
 
+      - name: Install Frontend Dependencies
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
       - name: Deploy to Server via SSH
         env:
           SSH_KEY: /home/runner/.ssh/id_deploy
