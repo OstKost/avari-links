@@ -1,0 +1,20 @@
+[Unit]
+Description=Avari Links URL Shortener Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/avari-links
+Environment="PORT=4820"
+Environment="BASE_URL=https://links.avari.dev"
+Environment="DB_PATH=/opt/avari-links/data/shortener.db"
+Environment="ENVIRONMENT=production"
+Environment="ALLOWED_ORIGINS=https://links.avari.dev"
+ExecStart=/usr/local/bin/avari-links
+Restart=always
+RestartSec=5s
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

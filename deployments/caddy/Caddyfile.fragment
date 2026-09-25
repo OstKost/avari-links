@@ -1,0 +1,21 @@
+# Avari Links (URL Shortener & Analytics)
+links.avari.dev, http://links.avari.dev {
+    handle /api/* {
+        reverse_proxy localhost:4820
+    }
+    handle /s/* {
+        reverse_proxy localhost:4820
+    }
+    handle /healthz {
+        reverse_proxy localhost:4820
+    }
+    handle /swagger/* {
+        reverse_proxy localhost:4820
+    }
+    handle {
+        root * /var/www/avari-links/frontend
+        try_files {path} /index.html
+        file_server
+    }
+    encode gzip zstd
+}
