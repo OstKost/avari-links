@@ -9,6 +9,8 @@
   Built with <strong>Go Clean Architecture</strong> (Zero-CGO Pure Go + SQLite WAL) and a <strong>React 18 + TypeScript</strong> frontend.
 </p>
 
+[![English Version](https://img.shields.io/badge/Language-English-blue.svg)](README.md)
+[![Русская версия](https://img.shields.io/badge/Язык-Русский-red.svg)](README_RU.md)
 [![CI Pipeline](https://github.com/OstKost/avari-links/actions/workflows/ci.yml/badge.svg)](https://github.com/OstKost/avari-links/actions)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)](https://react.dev)
@@ -19,6 +21,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 [Features](#-key-features) • [Architecture](#-system-architecture) • [Engineering Deep Dive](#-engineering-deep-dive) • [API Reference](#-rest-api-reference) • [CLI & Operations](#-administration--cli-toolkit) • [Quickstart](#-quickstart-guide) • [Testing](#-testing--quality-gates)
+
 
 </div>
 
