@@ -11,7 +11,7 @@ beforeEach(() => {
     viewMode: 'grid',
     isCreateModalOpen: false,
     isSessionModalOpen: false,
-    sessionKey: null,
+    sessionKey: 'valid-test-session-key',
     selectedQRLink: null,
   });
 });
