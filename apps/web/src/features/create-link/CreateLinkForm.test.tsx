@@ -9,6 +9,10 @@ vi.mock('@/entities/link/api', () => ({
   linkApi: {
     create: vi.fn(),
     preview: vi.fn(),
+    list: vi.fn(),
+    getByID: vi.fn(),
+    toggleStatus: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 
