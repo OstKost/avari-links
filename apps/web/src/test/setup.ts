@@ -1,6 +1,20 @@
 import '@testing-library/jest-dom/vitest';
 import { cleanup } from '@testing-library/react';
-import { afterEach, vi } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
+import { useAppStore } from '@/shared/store/app-store';
+
+beforeEach(() => {
+  useAppStore.setState({
+    language: 'ru',
+    theme: 'dark',
+    searchQuery: '',
+    viewMode: 'grid',
+    isCreateModalOpen: false,
+    isSessionModalOpen: false,
+    sessionKey: null,
+    selectedQRLink: null,
+  });
+});
 
 afterEach(() => {
   cleanup();
