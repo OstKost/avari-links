@@ -23,8 +23,8 @@ func NewLinkRepository(db *sql.DB) domain.LinkRepository {
 
 func (r *linkRepository) Create(ctx context.Context, link *domain.Link) error {
 	query := `
-		INSERT INTO links (id, original_url, code, title, clicks, is_active, last_clicked_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO links (id, user_id, original_url, code, title, clicks, is_active, is_nsfw, last_clicked_at, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var isActiveInt int
@@ -32,15 +32,22 @@ func (r *linkRepository) Create(ctx context.Context, link *domain.Link) error {
 		isActiveInt = 1
 	}
 
+	var isNSFWInt int
+	if link.IsNSFW {
+		isNSFWInt = 1
+	}
+
 	_, err := r.db.ExecContext(
 		ctx,
 		query,
 		link.ID,
+		link.UserID,
 		link.OriginalURL,
 		link.Code,
 		link.Title,
 		link.Clicks,
 		isActiveInt,
+		isNSFWInt,
 		link.LastClickedAt,
 		link.CreatedAt,
 		link.UpdatedAt,
@@ -58,7 +65,7 @@ func (r *linkRepository) Create(ctx context.Context, link *domain.Link) error {
 
 func (r *linkRepository) GetByID(ctx context.Context, id string) (*domain.Link, error) {
 	query := `
-		SELECT id, original_url, code, title, clicks, is_active, last_clicked_at, created_at, updated_at
+		SELECT id, user_id, original_url, code, title, clicks, is_active, is_nsfw, last_clicked_at, created_at, updated_at
 		FROM links
 		WHERE id = ?
 	`
@@ -69,7 +76,7 @@ func (r *linkRepository) GetByID(ctx context.Context, id string) (*domain.Link, 
 
 func (r *linkRepository) GetByCode(ctx context.Context, code string) (*domain.Link, error) {
 	query := `
-		SELECT id, original_url, code, title, clicks, is_active, last_clicked_at, created_at, updated_at
+		SELECT id, user_id, original_url, code, title, clicks, is_active, is_nsfw, last_clicked_at, created_at, updated_at
 		FROM links
 		WHERE code = ?
 	`
@@ -81,6 +88,11 @@ func (r *linkRepository) GetByCode(ctx context.Context, code string) (*domain.Li
 func (r *linkRepository) List(ctx context.Context, filter domain.ListLinksFilter) ([]*domain.Link, int64, error) {
 	var conditions []string
 	var args []interface{}
+
+	if filter.UserID != "" {
+		conditions = append(conditions, "user_id = ?")
+		args = append(args, filter.UserID)
+	}
 
 	if filter.Search != "" {
 		pattern := "%" + strings.ToLower(filter.Search) + "%"
@@ -115,7 +127,7 @@ func (r *linkRepository) List(ctx context.Context, filter domain.ListLinksFilter
 	}
 
 	selectQuery := fmt.Sprintf(`
-		SELECT id, original_url, code, title, clicks, is_active, last_clicked_at, created_at, updated_at
+		SELECT id, user_id, original_url, code, title, clicks, is_active, is_nsfw, last_clicked_at, created_at, updated_at
 		FROM links
 		%s
 		ORDER BY created_at DESC
@@ -143,6 +155,15 @@ func (r *linkRepository) List(ctx context.Context, filter domain.ListLinksFilter
 	}
 
 	return links, total, nil
+}
+
+func (r *linkRepository) CountByUser(ctx context.Context, userID string) (int64, error) {
+	query := `SELECT COUNT(*) FROM links WHERE user_id = ?`
+	var count int64
+	if err := r.db.QueryRowContext(ctx, query, userID).Scan(&count); err != nil {
+		return 0, fmt.Errorf("failed to count links by user: %w", err)
+	}
+	return count, nil
 }
 
 func (r *linkRepository) UpdateStatus(ctx context.Context, id string, isActive bool) error {
@@ -229,17 +250,21 @@ type rowScanner interface {
 func (r *linkRepository) scanLink(scanner rowScanner) (*domain.Link, error) {
 	var (
 		link          domain.Link
+		userID        sql.NullString
 		isActiveInt   int
+		isNSFWInt     int
 		lastClickedAt sql.NullTime
 	)
 
 	err := scanner.Scan(
 		&link.ID,
+		&userID,
 		&link.OriginalURL,
 		&link.Code,
 		&link.Title,
 		&link.Clicks,
 		&isActiveInt,
+		&isNSFWInt,
 		&lastClickedAt,
 		&link.CreatedAt,
 		&link.UpdatedAt,
@@ -252,7 +277,13 @@ func (r *linkRepository) scanLink(scanner rowScanner) (*domain.Link, error) {
 		return nil, err
 	}
 
+	if userID.Valid {
+		uid := userID.String
+		link.UserID = &uid
+	}
+
 	link.IsActive = (isActiveInt == 1)
+	link.IsNSFW = (isNSFWInt == 1)
 	if lastClickedAt.Valid {
 		t := lastClickedAt.Time.UTC()
 		link.LastClickedAt = &t

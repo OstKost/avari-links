@@ -7,21 +7,28 @@ import (
 	"strconv"
 
 	"github.com/OstKost/avari-links/apps/api/internal/domain"
+	"github.com/OstKost/avari-links/apps/api/internal/middleware"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 )
 
 // LinkHandler handles Link management REST endpoints.
 type LinkHandler struct {
-	service  domain.LinkService
-	validate *validator.Validate
+	service        domain.LinkService
+	previewService domain.PreviewService
+	validate       *validator.Validate
 }
 
 // NewLinkHandler creates a new LinkHandler instance.
-func NewLinkHandler(service domain.LinkService, validate *validator.Validate) *LinkHandler {
+func NewLinkHandler(service domain.LinkService, validate *validator.Validate, preview ...domain.PreviewService) *LinkHandler {
+	var prev domain.PreviewService
+	if len(preview) > 0 && preview[0] != nil {
+		prev = preview[0]
+	}
 	return &LinkHandler{
-		service:  service,
-		validate: validate,
+		service:        service,
+		previewService: prev,
+		validate:       validate,
 	}
 }
 
@@ -55,7 +62,19 @@ func (h *LinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var userID string
+	var isPremium bool
+	if session := middleware.GetSession(r.Context()); session != nil {
+		userID = session.ID
+		isPremium = session.IsPremium
+	} else {
+		respondError(w, http.StatusUnauthorized, "Authentication required to create links")
+		return
+	}
+
 	link, err := h.service.Create(r.Context(), domain.CreateLinkDTO{
+		UserID:      userID,
+		IsPremium:   isPremium,
 		OriginalURL: req.OriginalURL,
 		CustomCode:  req.CustomCode,
 		Title:       req.Title,
@@ -71,7 +90,7 @@ func (h *LinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 // List godoc
 // @Summary List shortened links
-// @Description Returns paginated and searchable list of links
+// @Description Returns paginated and searchable list of links for current session
 // @Tags Links
 // @Produce json
 // @Param search query string false "Search by title, original URL or code"
@@ -95,7 +114,23 @@ func (h *LinkHandler) List(w http.ResponseWriter, r *http.Request) {
 		offset = 0
 	}
 
+	var userID string
+	session := middleware.GetSession(r.Context())
+	if session != nil {
+		userID = session.ID
+	} else {
+		// If no active session header is provided, return empty list
+		respondJSON(w, http.StatusOK, PaginatedListResponse{
+			Data:   []*LinkResponse{},
+			Total:  0,
+			Limit:  limit,
+			Offset: offset,
+		})
+		return
+	}
+
 	links, total, err := h.service.List(r.Context(), domain.ListLinksFilter{
+		UserID: userID,
 		Search: search,
 		Limit:  limit,
 		Offset: offset,
@@ -130,7 +165,12 @@ func (h *LinkHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, err := h.service.GetByID(r.Context(), id)
+	var userID string
+	if session := middleware.GetSession(r.Context()); session != nil {
+		userID = session.ID
+	}
+
+	link, err := h.service.GetByID(r.Context(), id, userID)
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -175,7 +215,15 @@ func (h *LinkHandler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	link, err := h.service.ToggleStatus(r.Context(), id, *req.IsActive)
+	var userID string
+	if session := middleware.GetSession(r.Context()); session != nil {
+		userID = session.ID
+	} else {
+		respondError(w, http.StatusUnauthorized, "Authentication required to update links")
+		return
+	}
+
+	link, err := h.service.ToggleStatus(r.Context(), id, userID, *req.IsActive)
 	if err != nil {
 		mapDomainError(w, err)
 		return
@@ -201,10 +249,69 @@ func (h *LinkHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.service.Delete(r.Context(), id); err != nil {
+	var userID string
+	if session := middleware.GetSession(r.Context()); session != nil {
+		userID = session.ID
+	} else {
+		respondError(w, http.StatusUnauthorized, "Authentication required to delete links")
+		return
+	}
+
+	if err := h.service.Delete(r.Context(), id, userID); err != nil {
 		mapDomainError(w, err)
 		return
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// Preview godoc
+// @Summary Inspect destination URL
+// @Description Fetches page metadata (OpenGraph tags, title, image, favicon) and reachability status
+// @Tags Links
+// @Accept json
+// @Produce json
+// @Param request body PreviewLinkRequest true "URL preview payload"
+// @Success 200 {object} PreviewLinkResponse
+// @Failure 400 {object} ErrorResponse
+// @Router /api/v1/links/preview [post]
+func (h *LinkHandler) Preview(w http.ResponseWriter, r *http.Request) {
+	var req PreviewLinkRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, http.StatusBadRequest, "Invalid JSON body")
+		return
+	}
+
+	if err := h.validate.Struct(req); err != nil {
+		var valErrs validator.ValidationErrors
+		if errors.As(err, &valErrs) {
+			respondValidationError(w, valErrs)
+			return
+		}
+		respondError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if h.previewService == nil {
+		respondError(w, http.StatusInternalServerError, "Preview service unavailable")
+		return
+	}
+
+	preview, err := h.previewService.Inspect(r.Context(), req.URL)
+	if err != nil {
+		mapDomainError(w, err)
+		return
+	}
+
+	respondJSON(w, http.StatusOK, PreviewLinkResponse{
+		URL:         preview.URL,
+		IsReachable: preview.IsReachable,
+		StatusCode:  preview.StatusCode,
+		Title:       preview.Title,
+		Description: preview.Description,
+		ImageURL:    preview.ImageURL,
+		FaviconURL:  preview.FaviconURL,
+		SiteName:    preview.SiteName,
+		Error:       preview.Error,
+	})
 }

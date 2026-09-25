@@ -27,6 +27,8 @@ pnpm-debug.log*
 .turbo
 apps/web/dist/
 apps/web/node_modules/
+*.tsbuildinfo
+
 
 # Environment files
 .env

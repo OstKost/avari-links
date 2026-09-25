@@ -1,11 +1,23 @@
+import { useEffect } from 'react';
 import { Navbar } from '@/app/Navbar';
 import { HeroBanner } from '@/app/HeroBanner';
 import { Footer } from '@/app/Footer';
 import { LinkList } from '@/features/link-list/LinkList';
-import { CreateLinkModal } from '@/features/create-link/CreateLinkModal';
 import { QRCodeModal } from '@/features/qr-modal/QRCodeModal';
+import { SessionModal } from '@/features/session/SessionModal';
+import { useAppStore } from '@/shared/store/app-store';
+import { useCreateSession } from '@/entities/session/queries';
 
 export function App() {
+  const sessionKey = useAppStore((s) => s.sessionKey);
+  const createSessionMutation = useCreateSession();
+
+  useEffect(() => {
+    if (!sessionKey) {
+      createSessionMutation.mutate();
+    }
+  }, [sessionKey]);
+
   return (
     <div id="top" className="avari-shell min-h-screen flex flex-col justify-between">
       <div>
@@ -16,8 +28,8 @@ export function App() {
         </main>
       </div>
       <Footer />
-      <CreateLinkModal />
       <QRCodeModal />
+      <SessionModal />
     </div>
   );
 }

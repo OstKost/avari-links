@@ -22,6 +22,7 @@ GATES = {
     ],
     "web": [
         ("web-lint", ["pnpm", "run", "lint"], "apps/web", False, {}),
+        ("web-test", ["pnpm", "run", "test"], "apps/web", False, {}),
         ("web-build", ["pnpm", "run", "build"], "apps/web", False, {}),
     ],
     "harness": [

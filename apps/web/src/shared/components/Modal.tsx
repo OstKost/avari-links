@@ -1,5 +1,6 @@
 import React, { useEffect, useId, useRef } from 'react';
 import { cn } from '@/shared/utils/cn';
+import { useTranslation } from '@/shared/i18n';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -9,9 +10,11 @@ interface ModalProps {
   description?: string;
   children: React.ReactNode;
   className?: string;
+  closeAriaLabel?: string;
 }
 
-export function Modal({ isOpen, onClose, title, description, children, className }: ModalProps) {
+export function Modal({ isOpen, onClose, title, description, children, className, closeAriaLabel }: ModalProps) {
+  const { t } = useTranslation();
   const dialogRef = useRef<HTMLDivElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -48,7 +51,7 @@ export function Modal({ isOpen, onClose, title, description, children, className
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cn('avari-modal-panel relative my-auto w-full max-w-lg avari-surface rounded-[20px] shadow-2xl p-5 sm:p-7 z-10', className)}>
         <div className="flex items-start justify-between gap-4 mb-5">
           <div><h2 id={titleId} className="text-[1.7rem] leading-tight">{title}</h2>{description && <p id={descriptionId} className="text-sm avari-muted mt-1">{description}</p>}</div>
-          <button onClick={onClose} className="inline-flex items-center justify-center w-11 h-11 rounded-lg avari-secondary avari-interactive shrink-0" aria-label="Закрыть окно"><X className="w-5 h-5" /></button>
+          <button onClick={onClose} className="inline-flex items-center justify-center w-11 h-11 rounded-lg avari-secondary avari-interactive shrink-0" aria-label={closeAriaLabel || t.common.closeModal}><X className="w-5 h-5" /></button>
         </div>
         {children}
       </div>

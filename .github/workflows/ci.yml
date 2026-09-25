@@ -15,15 +15,21 @@ concurrency:
 
 jobs:
   harness:
-    name: Agent harness
+    name: Agent Harness
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: make check-harness
-      - name: Keep failure evidence
+
+      - name: Check Harness Metadata & Tests
+        run: make check-harness
+
+      - name: Keep Failure Evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -32,7 +38,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
-  backend-test-and-lint:
+  backend:
     name: Backend (Go)
     runs-on: ubuntu-latest
     steps:
@@ -42,17 +48,32 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: '1.24'
           check-latest: true
+          cache-dependency-path: apps/api/go.sum
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Format, Vet, Race Tests and Build
+      - name: Format, Vet, Race Tests and Pure Go Build
         run: make check-api
 
-      - name: Keep failure evidence
+      - name: Generate Code Coverage Report
+        working-directory: apps/api
+        run: |
+          go test -v -race -coverprofile=coverage.out -covermode=atomic ./...
+          go tool cover -func=coverage.out
+
+      - name: Upload Coverage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage-report
+          path: apps/api/coverage.out
+          retention-days: 14
+
+      - name: Keep Failure Evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -61,7 +82,7 @@ jobs:
           include-hidden-files: true
           retention-days: 7
 
-  frontend-test-and-lint:
+  frontend:
     name: Frontend (React & TypeScript)
     runs-on: ubuntu-latest
     steps:
@@ -71,7 +92,7 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 10
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -84,14 +105,15 @@ jobs:
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Lint, Typecheck and Build Bundle
+      - name: Lint, Test (Vitest) and Build Bundle
         run: make check-web
 
-      - name: Keep failure evidence
+      - name: Keep Failure Evidence
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -99,3 +121,51 @@ jobs:
           path: .harness/runs/
           include-hidden-files: true
           retention-days: 7
+
+  docker-verification:
+    name: Container Build Verification
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/api
+          file: apps/api/Dockerfile
+          push: false
+          tags: avari-api:ci-test
+
+      - name: Build Web Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/web
+          file: apps/web/Dockerfile
+          push: false
+          tags: avari-web:ci-test
+
+      - name: Validate Docker Compose Configuration
+        run: docker compose -f deployments/docker-compose.yml config
+
+  security-scan:
+    name: Security & Vulnerability Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          check-latest: true
+
+      - name: Run govulncheck (Go Security Scanner)
+        working-directory: apps/api
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...

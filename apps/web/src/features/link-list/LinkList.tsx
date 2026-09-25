@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLinks } from '@/entities/link/queries';
 import { useDebounce } from '@/shared/hooks/use-debounce';
 import { useAppStore } from '@/shared/store/app-store';
+import { useTranslation } from '@/shared/i18n';
 import { LinkCard } from './LinkCard';
 import { LinkTable } from './LinkTable';
 import { LinkStats } from './LinkStats';
@@ -20,15 +21,33 @@ import {
 export function LinkList() {
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
+  const { t } = useTranslation();
 
   const { data, isLoading, isError, error } = useLinks(debouncedSearch);
-  const { viewMode, setViewMode, setCreateModalOpen } = useAppStore();
+  const { viewMode, setViewMode, sessionKey } = useAppStore();
+
+  const scrollToCreateForm = () => {
+    const input = document.querySelector<HTMLInputElement>('.avari-hero-form input');
+    if (input) {
+      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      input.focus();
+    } else {
+      document.getElementById('top')?.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   const links = data?.data || [];
 
   return (
     <section id="links" aria-labelledby="links-title" className="space-y-6 scroll-mt-24">
-      <div className="flex items-end justify-between gap-4 border-b avari-divider pb-4"><div><p className="font-mono text-xs avari-cyan mb-1">КОЛЛЕКЦИЯ / ССЫЛКИ</p><h2 id="links-title" className="text-3xl sm:text-4xl">Мои ссылки</h2></div><span className="hidden sm:block text-sm avari-muted">Управление и статистика</span></div>
+      <div className="flex items-end justify-between gap-4 border-b avari-divider pb-4">
+        <div>
+          <p className="font-mono text-xs avari-cyan mb-1">{t.linkList.collectionTitle}</p>
+          <h2 id="links-title" className="text-3xl sm:text-4xl">{t.linkList.title}</h2>
+        </div>
+        <span className="hidden sm:block text-sm avari-muted">{t.linkList.subtitle}</span>
+      </div>
+
       {/* 1. Global Analytics Stats */}
       {links.length > 0 && <LinkStats links={links} />}
 
@@ -36,8 +55,8 @@ export function LinkList() {
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="w-full sm:w-80">
           <Input
-            aria-label="Поиск ссылок"
-            placeholder="Поиск по названию, адресу, коду…"
+            aria-label={t.linkList.searchLabel}
+            placeholder={t.linkList.searchPlaceholder}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             leftIcon={<Search className="w-4 h-4" />}
@@ -54,7 +73,9 @@ export function LinkList() {
                   ? 'bg-[var(--av-surface-raised)] text-[var(--av-cyan)]'
                   : 'avari-muted hover:text-[var(--av-text)]'
               }`}
-              title="Карточки" aria-label="Показать карточки" aria-pressed={viewMode === 'grid'}
+              title={t.linkList.gridView}
+              aria-label={t.linkList.showGrid}
+              aria-pressed={viewMode === 'grid'}
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
@@ -65,23 +86,25 @@ export function LinkList() {
                   ? 'bg-[var(--av-surface-raised)] text-[var(--av-cyan)]'
                   : 'avari-muted hover:text-[var(--av-text)]'
               }`}
-              title="Таблица" aria-label="Показать таблицу" aria-pressed={viewMode === 'table'}
+              title={t.linkList.tableView}
+              aria-label={t.linkList.showTable}
+              aria-pressed={viewMode === 'table'}
             >
               <ListIcon className="w-4 h-4" />
             </button>
           </div>
 
           <Button
-            onClick={() => setCreateModalOpen(true)}
+            onClick={scrollToCreateForm}
             leftIcon={<Plus className="w-4 h-4" />}
           >
-            Новая ссылка
+            {t.linkList.newLink}
           </Button>
         </div>
       </div>
 
       {/* 3. Content Area */}
-      {isLoading ? (
+      {isLoading || !sessionKey ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
             <Skeleton key={i} className="h-44 w-full" />
@@ -90,7 +113,7 @@ export function LinkList() {
       ) : isError ? (
         <div className="p-8 text-center avari-surface rounded-2xl">
           <p className="text-[var(--av-danger)] font-medium">
-            {(error as Error)?.message || 'Failed to load links'}
+            {(error as Error)?.message || t.linkList.loadError}
           </p>
         </div>
       ) : links.length === 0 ? (
@@ -100,20 +123,20 @@ export function LinkList() {
           </div>
           <div className="space-y-1 max-w-sm mx-auto">
             <h3 className="text-2xl">
-              {searchTerm ? 'По этому запросу ссылок нет' : 'Пока нет коротких ссылок'}
+              {searchTerm ? t.linkList.emptySearchTitle : t.linkList.emptyListTitle}
             </h3>
             <p className="text-sm avari-muted">
               {searchTerm
-                ? 'Измените запрос или очистите поле поиска.'
-                : 'Создайте первую ссылку, чтобы отслеживать переходы и получать QR-код.'}
+                ? t.linkList.emptySearchText
+                : t.linkList.emptyListText}
             </p>
           </div>
           {!searchTerm && (
             <Button
-              onClick={() => setCreateModalOpen(true)}
+              onClick={scrollToCreateForm}
               leftIcon={<Plus className="w-4 h-4" />}
             >
-              Создать первую ссылку
+              {t.linkList.createFirstLink}
             </Button>
           )}
         </div>

@@ -2,6 +2,7 @@ import { useRef } from 'react';
 import { Modal } from '@/shared/components/Modal';
 import { Button } from '@/shared/components/Button';
 import { useAppStore } from '@/shared/store/app-store';
+import { useTranslation } from '@/shared/i18n';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Download, Copy, ExternalLink } from 'lucide-react';
 import { useCopyToClipboard } from '@/shared/hooks/use-copy';
@@ -9,6 +10,7 @@ import { toast } from 'sonner';
 
 export function QRCodeModal() {
   const { selectedQRLink, setSelectedQRLink } = useAppStore();
+  const { t, language } = useTranslation();
   const { copy } = useCopyToClipboard();
   const qrRef = useRef<HTMLDivElement>(null);
 
@@ -17,7 +19,7 @@ export function QRCodeModal() {
   const downloadQR = () => {
     const canvas = qrRef.current?.querySelector('canvas');
     if (!canvas) {
-      toast.error('Не удалось создать изображение QR-кода');
+      toast.error(t.qrModal.genError);
       return;
     }
 
@@ -26,14 +28,14 @@ export function QRCodeModal() {
     anchor.href = image;
     anchor.download = `qrcode-${selectedQRLink.code}.png`;
     anchor.click();
-    toast.success('QR-код скачан');
+    toast.success(t.qrModal.downloadSuccess);
   };
 
   return (
     <Modal
       isOpen={!!selectedQRLink}
       onClose={() => setSelectedQRLink(null)}
-      title="QR-код ссылки"
+      title={t.qrModal.title}
       description={selectedQRLink.title || selectedQRLink.url}
     >
       <div className="flex flex-col items-center justify-center space-y-6 py-2">
@@ -50,7 +52,7 @@ export function QRCodeModal() {
         </div>
 
         <div className="text-center space-y-1 w-full max-w-sm">
-          <p className="text-xs avari-muted">Короткая ссылка</p>
+          <p className="text-xs avari-muted">{t.qrModal.shortUrl}</p>
           <p className="text-sm font-mono font-medium text-[var(--av-cyan)] truncate">
             {selectedQRLink.url}
           </p>
@@ -60,9 +62,9 @@ export function QRCodeModal() {
           <Button
             variant="outline"
             leftIcon={<Copy className="w-4 h-4" />}
-            onClick={() => copy(selectedQRLink.url, 'Короткая ссылка')}
+            onClick={() => copy(selectedQRLink.url, language === 'en' ? 'Short URL' : 'Короткая ссылка')}
           >
-            Копировать URL
+            {t.qrModal.copyUrl}
           </Button>
 
           <Button
@@ -70,7 +72,7 @@ export function QRCodeModal() {
             leftIcon={<Download className="w-4 h-4" />}
             onClick={downloadQR}
           >
-            Скачать PNG
+            {t.qrModal.downloadPng}
           </Button>
         </div>
 
@@ -81,7 +83,7 @@ export function QRCodeModal() {
             rel="noreferrer"
             className="inline-flex items-center gap-1.5 text-xs avari-muted hover:text-[var(--av-cyan)] avari-interactive"
           >
-            Открыть в новой вкладке <ExternalLink className="w-3.5 h-3.5" />
+            {t.qrModal.openInNewTab} <ExternalLink className="w-3.5 h-3.5" />
           </a>
         </div>
       </div>

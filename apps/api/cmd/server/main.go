@@ -63,13 +63,21 @@ func main() {
 	// 4. Dependency Injection / Composition Root
 	validate := validator.New()
 	linkRepo := sqlite.NewLinkRepository(db)
+	sessionRepo := sqlite.NewSessionRepository(db)
+
 	linkService := service.NewLinkService(linkRepo, cfg.BaseURL, cfg.CodeLength, cfg.BlockedLinkDomains)
-	linkHandler := handler.NewLinkHandler(linkService, validate)
+	previewService := service.NewPreviewService()
+	sessionService := service.NewSessionService(sessionRepo, linkRepo)
+
+	linkHandler := handler.NewLinkHandler(linkService, validate, previewService)
+	authHandler := handler.NewAuthHandler(sessionService, linkRepo, validate)
 	redirectHandler := handler.NewRedirectHandler(linkService)
 
 	router := handler.NewRouter(handler.RouterConfig{
 		LinkHandler:     linkHandler,
 		RedirectHandler: redirectHandler,
+		AuthHandler:     authHandler,
+		SessionService:  sessionService,
 		DB:              db,
 		AllowedOrigins:  cfg.AllowedOrigins,
 	})
@@ -82,7 +90,36 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// 5. Start Server in background
+	// 5. Start background periodic cleanup for inactive sessions (100 days)
+	cleanupCtx, cleanupCancel := context.WithCancel(context.Background())
+	defer cleanupCancel()
+
+	go func() {
+		ticker := time.NewTicker(24 * time.Hour)
+		defer ticker.Stop()
+
+		// Run once on startup
+		if purged, err := sessionService.CleanupInactive(cleanupCtx, 100*24*time.Hour); err != nil {
+			slog.Warn("Failed initial cleanup of inactive sessions", "error", err)
+		} else if purged > 0 {
+			slog.Info("Initial inactive sessions cleanup completed", "purged_sessions", purged)
+		}
+
+		for {
+			select {
+			case <-ticker.C:
+				if purged, err := sessionService.CleanupInactive(cleanupCtx, 100*24*time.Hour); err != nil {
+					slog.Warn("Failed periodic cleanup of inactive sessions", "error", err)
+				} else if purged > 0 {
+					slog.Info("Periodic inactive sessions cleanup completed", "purged_sessions", purged)
+				}
+			case <-cleanupCtx.Done():
+				return
+			}
+		}
+	}()
+
+	// 6. Start Server in background
 	serverErrors := make(chan error, 1)
 	go func() {
 		slog.Info("HTTP server is listening", "port", cfg.Port, "base_url", cfg.BaseURL)
@@ -91,7 +128,7 @@ func main() {
 		}
 	}()
 
-	// 6. Graceful Shutdown listener
+	// 7. Graceful Shutdown listener
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM)
 
@@ -102,6 +139,7 @@ func main() {
 
 	case sig := <-shutdown:
 		slog.Info("Shutdown signal received, initiating graceful shutdown", "signal", sig.String())
+		cleanupCancel()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()

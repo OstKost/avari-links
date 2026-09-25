@@ -14,7 +14,7 @@ import (
 	"github.com/google/uuid"
 )
 
-var customSlugRegex = regexp.MustCompile(`^[a-zA-Z0-9-_]{3,30}$`)
+var customSlugRegex = regexp.MustCompile(`^[a-zA-Z0-9-_]{4,30}$`)
 
 // linkService implements domain.LinkService.
 type linkService struct {
@@ -71,6 +71,9 @@ func (s *linkService) Create(ctx context.Context, dto domain.CreateLinkDTO) (*do
 		if !customSlugRegex.MatchString(customCode) {
 			return nil, domain.ErrInvalidSlug
 		}
+		if len(customCode) < 8 && !dto.IsPremium {
+			return nil, domain.ErrPremiumSlugRequired
+		}
 		exists, err := s.repo.ExistsCode(ctx, customCode)
 		if err != nil {
 			return nil, fmt.Errorf("failed to check custom code existence: %w", err)
@@ -120,6 +123,11 @@ func (s *linkService) Create(ctx context.Context, dto domain.CreateLinkDTO) (*do
 		UpdatedAt:   now,
 	}
 
+	if dto.UserID != "" {
+		uid := dto.UserID
+		link.UserID = &uid
+	}
+
 	if err := s.repo.Create(ctx, link); err != nil {
 		return nil, err
 	}
@@ -128,11 +136,15 @@ func (s *linkService) Create(ctx context.Context, dto domain.CreateLinkDTO) (*do
 	return link, nil
 }
 
-func (s *linkService) GetByID(ctx context.Context, id string) (*domain.Link, error) {
+func (s *linkService) GetByID(ctx context.Context, id string, userID string) (*domain.Link, error) {
 	link, err := s.repo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
+	if userID != "" && link.UserID != nil && *link.UserID != userID {
+		return nil, domain.ErrForbidden
+	}
+	s.applyLegacyNSFWLabel(link)
 	s.enrichShortURL(link)
 	return link, nil
 }
@@ -145,6 +157,7 @@ func (s *linkService) GetByCode(ctx context.Context, code string) (*domain.Link,
 	if err := s.checkDestination(link); err != nil {
 		return nil, err
 	}
+	s.applyLegacyNSFWLabel(link)
 	s.enrichShortURL(link)
 	return link, nil
 }
@@ -155,16 +168,25 @@ func (s *linkService) List(ctx context.Context, filter domain.ListLinksFilter) (
 		return nil, 0, err
 	}
 	for _, l := range links {
+		s.applyLegacyNSFWLabel(l)
 		s.enrichShortURL(l)
 	}
 	return links, total, nil
 }
 
-func (s *linkService) ToggleStatus(ctx context.Context, id string, isActive bool) (*domain.Link, error) {
+func (s *linkService) ToggleStatus(ctx context.Context, id string, userID string, isActive bool) (*domain.Link, error) {
+	link, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if userID != "" && link.UserID != nil && *link.UserID != userID {
+		return nil, domain.ErrForbidden
+	}
+
 	if err := s.repo.UpdateStatus(ctx, id, isActive); err != nil {
 		return nil, err
 	}
-	return s.GetByID(ctx, id)
+	return s.GetByID(ctx, id, userID)
 }
 
 func (s *linkService) RecordClick(ctx context.Context, code string) (string, error) {
@@ -197,9 +219,6 @@ func (s *linkService) checkDestination(link *domain.Link) error {
 	if s.isBlocked(parsed.Hostname()) {
 		return domain.ErrBlockedDestination
 	}
-	if looksNSFW(parsed) && !link.IsNSFW {
-		return domain.ErrNSFWLabelRequired
-	}
 	return nil
 }
 
@@ -220,7 +239,7 @@ func looksNSFW(u *url.URL) bool {
 			return true
 		}
 	}
-	for _, segment := range strings.FieldsFunc(strings.ToLower(u.EscapedPath()), func(r rune) bool {
+	for _, segment := range strings.FieldsFunc(strings.ToLower(u.Path), func(r rune) bool {
 		return r == '/' || r == '-' || r == '_' || r == '.'
 	}) {
 		if markers[segment] {
@@ -230,7 +249,23 @@ func looksNSFW(u *url.URL) bool {
 	return false
 }
 
-func (s *linkService) Delete(ctx context.Context, id string) error {
+func (s *linkService) applyLegacyNSFWLabel(link *domain.Link) {
+	if link != nil && !link.IsNSFW {
+		parsed, err := url.Parse(link.OriginalURL)
+		if err == nil && looksNSFW(parsed) {
+			link.IsNSFW = true
+		}
+	}
+}
+
+func (s *linkService) Delete(ctx context.Context, id string, userID string) error {
+	link, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return err
+	}
+	if userID != "" && link.UserID != nil && *link.UserID != userID {
+		return domain.ErrForbidden
+	}
 	return s.repo.Delete(ctx, id)
 }
 

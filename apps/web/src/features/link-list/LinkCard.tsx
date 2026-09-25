@@ -5,6 +5,7 @@ import type { Link } from '@/entities/link/types';
 import { useToggleLinkStatus, useDeleteLink } from '@/entities/link/queries';
 import { useCopyToClipboard } from '@/shared/hooks/use-copy';
 import { useAppStore } from '@/shared/store/app-store';
+import { useTranslation } from '@/shared/i18n';
 import {
   Copy,
   Check,
@@ -21,6 +22,7 @@ interface LinkCardProps {
 }
 
 export function LinkCard({ link }: LinkCardProps) {
+  const { t, language } = useTranslation();
   const { copiedText, copy } = useCopyToClipboard();
   const toggleStatus = useToggleLinkStatus();
   const deleteLink = useDeleteLink();
@@ -29,12 +31,12 @@ export function LinkCard({ link }: LinkCardProps) {
   const isCopied = copiedText === link.short_url;
 
   const handleDelete = () => {
-    if (window.confirm(`Удалить ссылку "${link.title || link.code}"?`)) {
+    if (window.confirm(t.linkCard.deleteConfirm(link.title || link.code))) {
       deleteLink.mutate(link.id);
     }
   };
 
-  const formattedDate = new Date(link.created_at).toLocaleDateString(undefined, {
+  const formattedDate = new Date(link.created_at).toLocaleDateString(language === 'en' ? 'en-US' : 'ru-RU', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
@@ -47,7 +49,7 @@ export function LinkCard({ link }: LinkCardProps) {
         <div className="flex items-start justify-between gap-2">
           <div className="space-y-0.5 min-w-0">
             <h4 className="font-bold text-[var(--av-text)] truncate text-base">
-              {link.title || 'Без названия'}
+              {link.title || t.linkCard.untitled}
             </h4>
             <div className="flex items-center gap-1.5 text-xs text-[var(--av-text-muted)]">
               <Calendar className="w-3.5 h-3.5" />
@@ -56,8 +58,9 @@ export function LinkCard({ link }: LinkCardProps) {
           </div>
 
           <Badge variant={link.is_active ? 'success' : 'neutral'}>
-            {link.is_active ? 'Активна' : 'Пауза'}
+            {link.is_active ? t.linkCard.active : t.linkCard.paused}
           </Badge>
+          {link.is_nsfw && <Badge variant="neutral">18+</Badge>}
         </div>
 
         {/* Short URL with 1-click Copy */}
@@ -73,9 +76,9 @@ export function LinkCard({ link }: LinkCardProps) {
           </a>
 
           <button
-            onClick={() => copy(link.short_url, 'Ссылка')}
+            onClick={() => copy(link.short_url, language === 'en' ? 'Link' : 'Ссылка')}
             className="w-11 h-11 inline-flex items-center justify-center text-[var(--av-text-muted)] hover:text-[var(--av-cyan)] hover:bg-[var(--av-surface-hover)] rounded-lg transition-colors ml-2 flex-shrink-0"
-            title={isCopied ? "Скопировано" : "Копировать ссылку"} aria-label={isCopied ? "Скопировано" : "Копировать ссылку"}
+            title={isCopied ? t.linkCard.copied : t.linkCard.copyLink} aria-label={isCopied ? t.linkCard.copied : t.linkCard.copyLink}
           >
             {isCopied ? <Check className="w-4 h-4 text-[var(--av-success)]" /> : <Copy className="w-4 h-4" />}
           </button>
@@ -83,7 +86,7 @@ export function LinkCard({ link }: LinkCardProps) {
 
         {/* Original Destination URL */}
         <div className="text-xs text-[var(--av-text-muted)] truncate">
-          <span className="font-medium text-[var(--av-text-secondary)]">Адрес: </span>
+          <span className="font-medium text-[var(--av-text-secondary)]">{t.linkCard.address}</span>
           <span className="font-mono">{link.original_url}</span>
         </div>
       </div>
@@ -92,7 +95,7 @@ export function LinkCard({ link }: LinkCardProps) {
       <div className="pt-3 border-t border-[var(--av-border-subtle)] flex items-center justify-between">
         <div className="flex items-center gap-1.5 text-xs font-semibold text-[var(--av-text-secondary)]">
           <MousePointerClick className="w-4 h-4 text-[var(--av-cyan)]" />
-          <span>{link.clicks} переходов</span>
+          <span>{t.linkCard.clicks(link.clicks)}</span>
         </div>
 
         <div className="flex items-center gap-1">
@@ -106,7 +109,8 @@ export function LinkCard({ link }: LinkCardProps) {
                 code: link.code,
               })
             }
-            title="Показать QR-код"
+            title={t.linkCard.showQr}
+            aria-label={t.linkCard.showQr}
           >
             <QrCode className="w-4 h-4" />
           </Button>
@@ -117,7 +121,8 @@ export function LinkCard({ link }: LinkCardProps) {
             onClick={() =>
               toggleStatus.mutate({ id: link.id, isActive: !link.is_active })
             }
-            title={link.is_active ? 'Приостановить ссылку' : 'Активировать ссылку'}
+            title={link.is_active ? t.linkCard.pauseLink : t.linkCard.activateLink}
+            aria-label={link.is_active ? t.linkCard.pauseLink : t.linkCard.activateLink}
             className={link.is_active ? 'text-[var(--av-warning)]' : 'text-[var(--av-success)]'}
           >
             <Power className="w-4 h-4" />
@@ -127,7 +132,8 @@ export function LinkCard({ link }: LinkCardProps) {
             variant="ghost"
             size="sm"
             onClick={handleDelete}
-            title="Удалить ссылку"
+            title={t.linkCard.deleteLink}
+            aria-label={t.linkCard.deleteLink}
             className="text-[var(--av-danger)] hover:bg-[var(--av-surface-hover)]"
           >
             <Trash2 className="w-4 h-4" />

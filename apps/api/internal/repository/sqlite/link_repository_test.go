@@ -44,6 +44,7 @@ func TestLinkRepository_CRUD(t *testing.T) {
 		Title:       "Example Link",
 		Clicks:      0,
 		IsActive:    true,
+		IsNSFW:      true,
 		CreatedAt:   now,
 		UpdatedAt:   now,
 	}
@@ -66,6 +67,7 @@ func TestLinkRepository_CRUD(t *testing.T) {
 	assert.Equal(t, link.Code, found.Code)
 	assert.Equal(t, link.Title, found.Title)
 	assert.True(t, found.IsActive)
+	assert.True(t, found.IsNSFW)
 
 	// 4. GetByCode
 	foundCode, err := repo.GetByCode(ctx, "ex1234")

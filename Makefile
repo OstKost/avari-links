@@ -64,8 +64,8 @@ test-api:
 	@cd apps/api && GOSUMDB=off go test -v -race -cover ./...
 
 test-web:
-	@echo "Running Web TypeScript check..."
-	@cd apps/web && pnpm run build
+	@echo "Running Web tests and TypeScript check..."
+	@cd apps/web && pnpm run test && pnpm run build
 
 # Linting
 lint: lint-api lint-web
@@ -101,6 +101,13 @@ docker-up:
 
 docker-down:
 	@docker compose -f deployments/docker-compose.yml down
+
+# Administration
+admin-stats:
+	@./scripts/admin.sh stats
+
+admin-list:
+	@./scripts/admin.sh list
 
 # Clean
 clean:

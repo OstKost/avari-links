@@ -1,5 +1,5 @@
 import { apiClient } from '@/shared/api/client';
-import type { Link, CreateLinkInput, PaginatedListResponse } from './types';
+import type { Link, CreateLinkInput, PaginatedListResponse, LinkPreview } from './types';
 
 export const linkApi = {
   async list(search?: string, limit: number = 50, offset: number = 0): Promise<PaginatedListResponse<Link>> {
@@ -21,6 +21,12 @@ export const linkApi = {
     const response = await apiClient.post<Link>('/api/v1/links', input);
     return response.data;
   },
+
+  async preview(url: string): Promise<LinkPreview> {
+    const response = await apiClient.post<LinkPreview>('/api/v1/links/preview', { url });
+    return response.data;
+  },
+
 
   async toggleStatus(id: string, isActive: boolean): Promise<Link> {
     const response = await apiClient.patch<Link>(`/api/v1/links/${id}/status`, {

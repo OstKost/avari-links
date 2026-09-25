@@ -1,5 +1,6 @@
 import { Card } from '@/shared/components/Card';
 import type { Link } from '@/entities/link/types';
+import { useTranslation } from '@/shared/i18n';
 import { Link2, MousePointerClick, CheckCircle2, TrendingUp } from 'lucide-react';
 
 interface LinkStatsProps {
@@ -7,6 +8,7 @@ interface LinkStatsProps {
 }
 
 export function LinkStats({ links }: LinkStatsProps) {
+  const { t } = useTranslation();
   const totalLinks = links.length;
   const totalClicks = links.reduce((acc, curr) => acc + curr.clicks, 0);
   const activeLinks = links.filter((l) => l.is_active).length;
@@ -14,25 +16,25 @@ export function LinkStats({ links }: LinkStatsProps) {
 
   const stats = [
     {
-      title: 'Всего ссылок',
+      title: t.stats.totalLinks,
       value: totalLinks,
       icon: <Link2 className="w-5 h-5 avari-gold" />,
       bg: 'avari-raised',
     },
     {
-      title: 'Переходов',
+      title: t.stats.totalClicks,
       value: totalClicks,
       icon: <MousePointerClick className="w-5 h-5 text-[var(--av-success)]" />,
       bg: 'avari-raised',
     },
     {
-      title: 'Активных',
+      title: t.stats.activeLinks,
       value: activeLinks,
       icon: <CheckCircle2 className="w-5 h-5 avari-cyan" />,
       bg: 'avari-raised',
     },
     {
-      title: 'Среднее на ссылку',
+      title: t.stats.avgPerLink,
       value: avgClicks,
       icon: <TrendingUp className="w-5 h-5 avari-gold" />,
       bg: 'avari-raised',
