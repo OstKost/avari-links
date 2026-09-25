@@ -6,12 +6,6 @@ import { linkApi } from '@/entities/link/api';
 import { useAppStore } from '@/shared/store/app-store';
 import type { Link } from '@/entities/link/types';
 
-vi.mock('@/entities/link/api', () => ({
-  linkApi: {
-    list: vi.fn(),
-  },
-}));
-
 const mockLinks: Link[] = [
   {
     id: 'link-1',
@@ -29,7 +23,7 @@ const mockLinks: Link[] = [
 
 describe('LinkList', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
     useAppStore.setState({
       language: 'ru',
       sessionKey: 'valid-session-key',
@@ -38,7 +32,7 @@ describe('LinkList', () => {
   });
 
   it('renders links in grid mode', async () => {
-    vi.mocked(linkApi.list).mockResolvedValueOnce({
+    vi.spyOn(linkApi, 'list').mockResolvedValueOnce({
       data: mockLinks,
       total: 1,
       limit: 50,
@@ -54,7 +48,7 @@ describe('LinkList', () => {
   });
 
   it('renders empty state when no links exist', async () => {
-    vi.mocked(linkApi.list).mockResolvedValueOnce({
+    vi.spyOn(linkApi, 'list').mockResolvedValueOnce({
       data: [],
       total: 0,
       limit: 50,
@@ -70,7 +64,7 @@ describe('LinkList', () => {
   });
 
   it('switches between grid and table view', async () => {
-    vi.mocked(linkApi.list).mockResolvedValue({
+    vi.spyOn(linkApi, 'list').mockResolvedValue({
       data: mockLinks,
       total: 1,
       limit: 50,

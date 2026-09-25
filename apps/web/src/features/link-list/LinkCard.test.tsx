@@ -6,13 +6,6 @@ import { linkApi } from '@/entities/link/api';
 import { useAppStore } from '@/shared/store/app-store';
 import type { Link } from '@/entities/link/types';
 
-vi.mock('@/entities/link/api', () => ({
-  linkApi: {
-    toggleStatus: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
-
 const mockLink: Link = {
   id: 'test-link-id',
   original_url: 'https://github.com/OstKost/avari-links',
@@ -28,7 +21,7 @@ const mockLink: Link = {
 
 describe('LinkCard', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
     useAppStore.setState({
       language: 'ru',
     });
@@ -68,7 +61,7 @@ describe('LinkCard', () => {
   });
 
   it('toggles link status when clicking power button', async () => {
-    vi.mocked(linkApi.toggleStatus).mockResolvedValueOnce({
+    const toggleSpy = vi.spyOn(linkApi, 'toggleStatus').mockResolvedValueOnce({
       ...mockLink,
       is_active: false,
     });
@@ -79,12 +72,12 @@ describe('LinkCard', () => {
     fireEvent.click(toggleBtn);
 
     await waitFor(() => {
-      expect(linkApi.toggleStatus).toHaveBeenCalledWith('test-link-id', false);
+      expect(toggleSpy).toHaveBeenCalledWith('test-link-id', false);
     });
   });
 
   it('deletes link when clicking delete button with confirmation', async () => {
-    vi.mocked(linkApi.delete).mockResolvedValueOnce(undefined);
+    const deleteSpy = vi.spyOn(linkApi, 'delete').mockResolvedValueOnce(undefined);
 
     renderWithProviders(<LinkCard link={mockLink} />);
 
@@ -93,7 +86,7 @@ describe('LinkCard', () => {
 
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => {
-      expect(linkApi.delete).toHaveBeenCalledWith('test-link-id');
+      expect(deleteSpy).toHaveBeenCalledWith('test-link-id');
     });
   });
 });

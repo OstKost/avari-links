@@ -6,13 +6,6 @@ import { linkApi } from '@/entities/link/api';
 import { useAppStore } from '@/shared/store/app-store';
 import type { Link } from '@/entities/link/types';
 
-vi.mock('@/entities/link/api', () => ({
-  linkApi: {
-    toggleStatus: vi.fn(),
-    delete: vi.fn(),
-  },
-}));
-
 const mockLinks: Link[] = [
   {
     id: 'link-1',
@@ -42,7 +35,7 @@ const mockLinks: Link[] = [
 
 describe('LinkTable', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.restoreAllMocks();
     useAppStore.setState({
       language: 'ru',
     });
@@ -62,25 +55,25 @@ describe('LinkTable', () => {
   });
 
   it('handles row actions: toggle and delete', async () => {
-    vi.mocked(linkApi.toggleStatus).mockResolvedValueOnce({
+    const toggleSpy = vi.spyOn(linkApi, 'toggleStatus').mockResolvedValueOnce({
       ...mockLinks[0],
       is_active: false,
     });
-    vi.mocked(linkApi.delete).mockResolvedValueOnce(undefined);
+    const deleteSpy = vi.spyOn(linkApi, 'delete').mockResolvedValueOnce(undefined);
 
     renderWithProviders(<LinkTable links={mockLinks} />);
 
     const toggleButtons = screen.getAllByTitle(/приостановить ссылку|активировать ссылку/i);
     fireEvent.click(toggleButtons[0]);
     await waitFor(() => {
-      expect(linkApi.toggleStatus).toHaveBeenCalledWith('link-1', false);
+      expect(toggleSpy).toHaveBeenCalledWith('link-1', false);
     });
 
     const deleteButtons = screen.getAllByTitle(/удалить ссылку/i);
     fireEvent.click(deleteButtons[1]);
     expect(window.confirm).toHaveBeenCalled();
     await waitFor(() => {
-      expect(linkApi.delete).toHaveBeenCalledWith('link-2');
+      expect(deleteSpy).toHaveBeenCalledWith('link-2');
     });
   });
 });
