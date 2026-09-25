@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { sessionApi } from './api';
+import { sessionApi } from '@/entities/session/api';
 import { SESSION_KEY_STORAGE } from '@/shared/api/client';
 import { LINK_KEYS } from '@/entities/link/queries';
 import { useAppStore } from '@/shared/store/app-store';
