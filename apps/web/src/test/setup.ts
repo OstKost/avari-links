@@ -20,6 +20,16 @@ afterEach(() => {
   cleanup();
   vi.clearAllMocks();
   localStorage.clear();
+  useAppStore.setState({
+    language: 'ru',
+    theme: 'dark',
+    searchQuery: '',
+    viewMode: 'grid',
+    isCreateModalOpen: false,
+    isSessionModalOpen: false,
+    sessionKey: 'valid-test-session-key',
+    selectedQRLink: null,
+  });
 });
 
 // Mock window.matchMedia

@@ -156,5 +156,6 @@ describe('App Integration', () => {
     expect(screen.getByText(/short links/i)).toBeInTheDocument();
     expect(screen.getAllByText(/my links/i).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: /create short link/i })).toBeInTheDocument();
+    useAppStore.setState({ language: 'ru' });
   });
 });
