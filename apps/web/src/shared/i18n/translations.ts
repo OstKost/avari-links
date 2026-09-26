@@ -50,8 +50,9 @@ export const translations = {
       createAnyway: 'Создать всё равно',
       siteUnreachable: 'Сайт не отвечает',
       previewTitle: 'Предпросмотр ссылки',
+      createdSuccessCooldown: (sec: number) => `Создано (${sec}с)`,
+      linkCreatedHold: 'Ссылка успешно создана',
       validation: {
-
         urlRequired: 'Укажите адрес назначения',
         urlInvalid: 'Укажите корректный URL с http:// или https://',
         titleMax: 'Название не должно превышать 120 символов',
@@ -145,6 +146,16 @@ export const translations = {
       confirmNew:
         'Создать новый анонимный профиль? Предыдущий ключ можно будет ввести позже для восстановления ссылок.',
       newProfileCreated: 'Создан новый профиль',
+      rerollName: 'Сменить имя (реролл)',
+      rerollRemaining: (rem: number, max: number) => `${rem}/${max}`,
+      rerollLimitReached: 'Лимит смены имени (5 раз за браузерную сессию) исчерпан',
+      rerollWarningTitle: 'Внимание: сохраните текущий ключ!',
+      rerollWarningText: (count: number) =>
+        `У вас сохранено ссылок: ${count}. При смене имени будет создан новый профиль. Обязательно сохраните текущий ключ, иначе вы потеряете доступ к своим ссылкам!`,
+      confirmReroll: 'Сменить имя',
+      cancel: 'Отмена',
+      copyCurrentKey: 'Скопировать текущий ключ',
+      rerollSuccess: (key: string) => `Новое имя профиля: ${key}`,
     },
     footer: {
       description:
@@ -234,8 +245,9 @@ export const translations = {
       createAnyway: 'Create anyway',
       siteUnreachable: 'Website unreachable',
       previewTitle: 'Link preview',
+      createdSuccessCooldown: (sec: number) => `Created (${sec}s)`,
+      linkCreatedHold: 'Link created successfully',
       validation: {
-
         urlRequired: 'Destination URL is required',
         urlInvalid: 'Please provide a valid URL starting with http:// or https://',
         titleMax: 'Title must not exceed 120 characters',
@@ -329,6 +341,16 @@ export const translations = {
       confirmNew:
         'Create a new anonymous profile? Your previous key can be entered anytime later to restore links.',
       newProfileCreated: 'New profile created',
+      rerollName: 'Reroll name',
+      rerollRemaining: (rem: number, max: number) => `${rem}/${max}`,
+      rerollLimitReached: 'Name reroll limit (5 per session) reached',
+      rerollWarningTitle: 'Warning: save your current key!',
+      rerollWarningText: (count: number) =>
+        `You have ${count} links. Changing name generates a new profile. Save your current key to avoid losing access to your links!`,
+      confirmReroll: 'Reroll name',
+      cancel: 'Cancel',
+      copyCurrentKey: 'Copy current key',
+      rerollSuccess: (key: string) => `New profile name: ${key}`,
     },
     footer: {
       description:

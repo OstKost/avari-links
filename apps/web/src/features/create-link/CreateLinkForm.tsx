@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getCreateLinkSchema, type CreateLinkFormData } from './schema';
@@ -11,7 +11,7 @@ import { Input } from '@/shared/components/Input';
 import { Button } from '@/shared/components/Button';
 import { Switch } from '@/shared/components/Switch';
 import { LinkPreviewCard } from './LinkPreviewCard';
-import { Link2, Sparkles, Tag, Globe, RotateCcw } from 'lucide-react';
+import { Link2, Sparkles, Tag, Globe, RotateCcw, Check } from 'lucide-react';
 
 export type PreviewStatus = 'idle' | 'inspecting' | 'success' | 'failed';
 
@@ -38,6 +38,10 @@ export function CreateLinkForm({
   const [preview, setPreview] = useState<LinkPreview | null>(null);
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('idle');
   const [inspectedUrl, setInspectedUrl] = useState<string>('');
+  const [cooldown, setCooldown] = useState<number>(0);
+
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const {
     register,
@@ -59,14 +63,47 @@ export function CreateLinkForm({
 
   const watchedUrl = watch('original_url');
 
-  // Reset preview state if user edits the target URL
+  // Clean up timers on unmount
   useEffect(() => {
-    if (previewStatus !== 'idle' && watchedUrl !== inspectedUrl) {
+    return () => {
+      if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, []);
+
+  // Reset preview state if user edits the target URL and not in active cooldown
+  useEffect(() => {
+    if (cooldown === 0 && previewStatus !== 'idle' && watchedUrl !== inspectedUrl) {
       setPreview(null);
       setPreviewStatus('idle');
       onPreviewStateChange?.(null, false, watchedUrl);
     }
-  }, [watchedUrl, inspectedUrl, previewStatus, onPreviewStateChange]);
+  }, [watchedUrl, inspectedUrl, previewStatus, onPreviewStateChange, cooldown]);
+
+  const startSuccessHold = () => {
+    setCooldown(5);
+
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+
+    intervalRef.current = setInterval(() => {
+      setCooldown((prev) => {
+        if (prev <= 1) {
+          if (intervalRef.current) clearInterval(intervalRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    clearTimerRef.current = setTimeout(() => {
+      setPreview(null);
+      setPreviewStatus('idle');
+      setInspectedUrl('');
+      onPreviewStateChange?.(null, false, '');
+      setCooldown(0);
+    }, 5000);
+  };
 
   const executeCheck = async (urlToCheck: string, currentData: CreateLinkFormData) => {
     setPreviewStatus('inspecting');
@@ -97,11 +134,8 @@ export function CreateLinkForm({
         });
 
         reset();
-        setPreview(null);
-        setPreviewStatus('idle');
-        setInspectedUrl('');
-        onPreviewStateChange?.(null, false, '');
         onSuccess?.();
+        startSuccessHold();
       } else {
         setPreviewStatus('failed');
         onPreviewStateChange?.(res, false, urlToCheck);
@@ -134,11 +168,8 @@ export function CreateLinkForm({
           is_nsfw: data.is_nsfw,
         });
         reset();
-        setPreview(null);
-        setPreviewStatus('idle');
-        setInspectedUrl('');
-        onPreviewStateChange?.(null, false, '');
         onSuccess?.();
+        startSuccessHold();
       } catch {
         // Handled by TanStack Query onError toast
       }
@@ -160,6 +191,7 @@ export function CreateLinkForm({
   const isChecking = previewStatus === 'inspecting' || previewLink.isPending;
   const isCreating = isSubmitting || createLink.isPending;
   const isLoading = isChecking || isCreating;
+  const isLocked = isLoading || cooldown > 0;
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -236,7 +268,7 @@ export function CreateLinkForm({
             type="button"
             variant="secondary"
             onClick={handleRetryCheck}
-            disabled={isLoading}
+            disabled={isLocked}
             leftIcon={<RotateCcw className={`w-4 h-4 ${isChecking ? 'animate-spin' : ''}`} />}
             className="w-full sm:w-auto border-[var(--av-warning)]/40 text-[var(--av-warning)] hover:border-[var(--av-warning)]"
             title={t.createForm.retryCheck}
@@ -248,10 +280,21 @@ export function CreateLinkForm({
         <Button
           type="submit"
           isLoading={isLoading}
-          leftIcon={<Sparkles className="w-4 h-4" />}
+          disabled={isLocked}
+          leftIcon={
+            cooldown > 0 ? (
+              <Check className="w-4 h-4 text-[var(--av-success)]" />
+            ) : (
+              <Sparkles className="w-4 h-4" />
+            )
+          }
           className="w-full sm:w-auto"
         >
-          {previewStatus === 'failed' ? t.createForm.createAnyway : t.createForm.submitButton}
+          {cooldown > 0
+            ? t.createForm.createdSuccessCooldown(cooldown)
+            : previewStatus === 'failed'
+            ? t.createForm.createAnyway
+            : t.createForm.submitButton}
         </Button>
       </div>
     </form>

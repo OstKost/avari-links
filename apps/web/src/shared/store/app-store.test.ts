@@ -76,4 +76,21 @@ describe('useAppStore', () => {
     useAppStore.getState().setSelectedQRLink(qrData);
     expect(useAppStore.getState().selectedQRLink).toEqual(qrData);
   });
+
+  it('increments and caps session rerolls at 5', () => {
+    useAppStore.getState().resetRerolls();
+    expect(useAppStore.getState().rerollsCount).toBe(0);
+
+    for (let i = 1; i <= 5; i++) {
+      useAppStore.getState().incrementRerolls();
+      expect(useAppStore.getState().rerollsCount).toBe(i);
+    }
+
+    // Try exceeding max of 5
+    useAppStore.getState().incrementRerolls();
+    expect(useAppStore.getState().rerollsCount).toBe(5);
+
+    useAppStore.getState().resetRerolls();
+    expect(useAppStore.getState().rerollsCount).toBe(0);
+  });
 });

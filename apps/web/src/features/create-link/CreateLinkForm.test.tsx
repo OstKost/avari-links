@@ -254,4 +254,53 @@ describe('CreateLinkForm', () => {
       });
     });
   });
+
+  it('keeps preview active and locks submit button for 5 seconds upon success', async () => {
+    const onPreviewStateChange = vi.fn();
+    vi.mocked(linkApi.preview).mockResolvedValueOnce({
+      url: 'https://example.com/test-hold',
+      is_reachable: true,
+      status_code: 200,
+      title: 'Hold Preview Title',
+    });
+
+    vi.mocked(linkApi.create).mockResolvedValueOnce({
+      id: 'link-hold',
+      original_url: 'https://example.com/test-hold',
+      code: 'hold-code',
+      short_url: 'http://localhost:4820/s/hold-code',
+      title: 'Hold Preview Title',
+      clicks: 0,
+      is_active: true,
+      is_nsfw: false,
+      created_at: '2026-09-25T12:00:00Z',
+      updated_at: '2026-09-25T12:00:00Z',
+    });
+
+    renderWithProviders(<CreateLinkForm onPreviewStateChange={onPreviewStateChange} />);
+
+    fireEvent.change(screen.getByLabelText(/адрес назначения/i), {
+      target: { value: 'https://example.com/test-hold' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /создать короткую ссылку/i }));
+
+    await waitFor(() => {
+      expect(linkApi.create).toHaveBeenCalled();
+    });
+
+    // Preview state should be sent to onPreviewStateChange
+    expect(onPreviewStateChange).toHaveBeenCalledWith(
+      expect.objectContaining({ title: 'Hold Preview Title' }),
+      false,
+      'https://example.com/test-hold'
+    );
+
+    // Button is disabled during 5s cooldown
+    await waitFor(() => {
+      const cooldownBtn = screen.getByRole('button', { name: /создано \(5с\)/i });
+      expect(cooldownBtn).toBeInTheDocument();
+      expect(cooldownBtn).toBeDisabled();
+    });
+  });
 });

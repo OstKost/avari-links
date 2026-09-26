@@ -16,9 +16,17 @@ vi.mock('@/entities/session/api', () => ({
 describe('SessionModal', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(sessionApi.getMe).mockResolvedValue({
+      id: 'default-session-id',
+      links_count: 0,
+      is_premium: false,
+      last_active_at: '2026-09-25T12:00:00Z',
+      created_at: '2026-09-25T12:00:00Z',
+    });
     useAppStore.setState({
       isSessionModalOpen: true,
       sessionKey: 'whispering-mountain-9921',
+      rerollsCount: 0,
     });
   });
 
@@ -104,5 +112,91 @@ describe('SessionModal', () => {
       expect(screen.getByText(/premium статус активен/i)).toBeInTheDocument();
       expect(screen.getByText(/короткие ссылки от 4 символов/i)).toBeInTheDocument();
     });
+  });
+
+  it('allows rerolling name directly when user has 0 links', async () => {
+    useAppStore.setState({ rerollsCount: 0 });
+    vi.mocked(sessionApi.getMe).mockResolvedValueOnce({
+      id: 'session-id',
+      links_count: 0,
+      is_premium: false,
+      last_active_at: '2026-09-25T12:00:00Z',
+      created_at: '2026-09-25T12:00:00Z',
+    });
+    vi.mocked(sessionApi.createSession).mockResolvedValueOnce({
+      id: 'new-session-id',
+      access_key: 'mystic-dragon-1111',
+      links_count: 0,
+      is_premium: false,
+      last_active_at: '2026-09-25T12:00:00Z',
+      created_at: '2026-09-25T12:00:00Z',
+    });
+
+    renderWithProviders(<SessionModal />);
+
+    const rerollBtn = screen.getByRole('button', { name: /сменить имя \(реролл\)/i });
+    expect(rerollBtn).toBeInTheDocument();
+    expect(screen.getByText('5/5')).toBeInTheDocument();
+
+    fireEvent.click(rerollBtn);
+
+    await waitFor(() => {
+      expect(sessionApi.createSession).toHaveBeenCalled();
+      expect(useAppStore.getState().sessionKey).toBe('mystic-dragon-1111');
+      expect(useAppStore.getState().rerollsCount).toBe(1);
+    });
+  });
+
+  it('shows warning when rerolling with existing links, then allows confirming', async () => {
+    useAppStore.setState({ rerollsCount: 1 });
+    vi.mocked(sessionApi.getMe).mockResolvedValueOnce({
+      id: 'session-id',
+      links_count: 4,
+      is_premium: false,
+      last_active_at: '2026-09-25T12:00:00Z',
+      created_at: '2026-09-25T12:00:00Z',
+    });
+    vi.mocked(sessionApi.createSession).mockResolvedValueOnce({
+      id: 'new-session-id',
+      access_key: 'silver-hawk-2222',
+      links_count: 0,
+      is_premium: false,
+      last_active_at: '2026-09-25T12:00:00Z',
+      created_at: '2026-09-25T12:00:00Z',
+    });
+
+    renderWithProviders(<SessionModal />);
+
+    await waitFor(() => {
+      expect(screen.getByText(/ссылок: 4/i)).toBeInTheDocument();
+    });
+
+    const rerollBtn = screen.getByRole('button', { name: /сменить имя \(реролл\)/i });
+    fireEvent.click(rerollBtn);
+
+    // Warning alert box appears
+    await waitFor(() => {
+      expect(screen.getByText(/внимание: сохраните текущий ключ/i)).toBeInTheDocument();
+      expect(screen.getByText(/у вас сохранено ссылок: 4/i)).toBeInTheDocument();
+    });
+
+    // Confirm button inside warning
+    const confirmBtn = screen.getByRole('button', { name: /^сменить имя$/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(sessionApi.createSession).toHaveBeenCalled();
+      expect(useAppStore.getState().sessionKey).toBe('silver-hawk-2222');
+      expect(useAppStore.getState().rerollsCount).toBe(2);
+    });
+  });
+
+  it('disables reroll button when limit of 5 is reached', () => {
+    useAppStore.setState({ rerollsCount: 5 });
+    renderWithProviders(<SessionModal />);
+
+    const rerollBtn = screen.getByRole('button', { name: /сменить имя \(реролл\)/i });
+    expect(rerollBtn).toBeDisabled();
+    expect(screen.getByText('0/5')).toBeInTheDocument();
   });
 });

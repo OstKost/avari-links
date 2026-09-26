@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { SESSION_KEY_STORAGE } from '@/shared/api/client';
 
+export const MAX_SESSION_REROLLS = 5;
+export const SESSION_REROLLS_STORAGE = 'avari_session_rerolls_count';
+
 interface AppState {
   language: 'ru' | 'en';
   setLanguage: (language: 'ru' | 'en') => void;
@@ -19,6 +22,9 @@ interface AppState {
   setSessionKey: (key: string | null) => void;
   selectedQRLink: { url: string; title: string; code: string } | null;
   setSelectedQRLink: (link: { url: string; title: string; code: string } | null) => void;
+  rerollsCount: number;
+  incrementRerolls: () => void;
+  resetRerolls: () => void;
 }
 
 export const useAppStore = create<AppState>((set) => {
@@ -31,6 +37,16 @@ export const useAppStore = create<AppState>((set) => {
   const initialTheme = savedTheme === 'light' ? 'light' : 'dark';
 
   const savedSessionKey = typeof window !== 'undefined' ? localStorage.getItem(SESSION_KEY_STORAGE) : null;
+
+  let initialRerolls = 0;
+  if (typeof window !== 'undefined' && window.sessionStorage) {
+    try {
+      const stored = window.sessionStorage.getItem(SESSION_REROLLS_STORAGE);
+      initialRerolls = stored ? parseInt(stored, 10) || 0 : 0;
+    } catch {
+      initialRerolls = 0;
+    }
+  }
 
   if (typeof document !== 'undefined') {
     document.documentElement.lang = initialLanguage;
@@ -89,5 +105,28 @@ export const useAppStore = create<AppState>((set) => {
     setSessionKey: (sessionKey) => set({ sessionKey }),
     selectedQRLink: null,
     setSelectedQRLink: (selectedQRLink) => set({ selectedQRLink }),
+    rerollsCount: initialRerolls,
+    incrementRerolls: () =>
+      set((state) => {
+        const next = Math.min(MAX_SESSION_REROLLS, state.rerollsCount + 1);
+        if (typeof window !== 'undefined' && window.sessionStorage) {
+          try {
+            window.sessionStorage.setItem(SESSION_REROLLS_STORAGE, String(next));
+          } catch {
+            // ignore
+          }
+        }
+        return { rerollsCount: next };
+      }),
+    resetRerolls: () => {
+      if (typeof window !== 'undefined' && window.sessionStorage) {
+        try {
+          window.sessionStorage.removeItem(SESSION_REROLLS_STORAGE);
+        } catch {
+          // ignore
+        }
+      }
+      set({ rerollsCount: 0 });
+    },
   };
 });

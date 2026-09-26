@@ -4,21 +4,24 @@ import { Input } from '@/shared/components/Input';
 import { Button } from '@/shared/components/Button';
 import { Badge } from '@/shared/components/Badge';
 import { UserAvatar } from '@/shared/components/UserAvatar';
-import { useAppStore } from '@/shared/store/app-store';
+import { useAppStore, MAX_SESSION_REROLLS } from '@/shared/store/app-store';
 import { useTranslation } from '@/shared/i18n';
 import { useRestoreSession, useCreateSession, useSessionMe } from '@/entities/session/queries';
-import { KeyRound, Copy, Check, ShieldAlert, Sparkles, RefreshCw, ArrowRight } from 'lucide-react';
+import { KeyRound, Copy, Check, ShieldAlert, Sparkles, RefreshCw, ArrowRight, Dices, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export function SessionModal() {
-  const { isSessionModalOpen, setSessionModalOpen, sessionKey } = useAppStore();
+  const { isSessionModalOpen, setSessionModalOpen, sessionKey, rerollsCount, incrementRerolls } = useAppStore();
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
   const [inputKey, setInputKey] = useState('');
+  const [showRerollWarning, setShowRerollWarning] = useState(false);
 
   const { data: meData } = useSessionMe();
   const restoreMutation = useRestoreSession();
   const createMutation = useCreateSession();
+
+  const remainingRerolls = Math.max(0, MAX_SESSION_REROLLS - rerollsCount);
 
   const handleCopyKey = () => {
     if (!sessionKey) return;
@@ -35,19 +38,37 @@ export function SessionModal() {
     restoreMutation.mutate(clean, {
       onSuccess: () => {
         setInputKey('');
+        setShowRerollWarning(false);
         setSessionModalOpen(false);
       },
     });
   };
 
-  const handleGenerateNew = () => {
-    if (confirm(t.sessionModal.confirmNew)) {
-      createMutation.mutate(undefined, {
-        onSuccess: () => {
+  const executeReroll = () => {
+    createMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        incrementRerolls();
+        setShowRerollWarning(false);
+        if (data?.access_key) {
+          toast.success(t.sessionModal.rerollSuccess(data.access_key));
+        } else {
           toast.success(t.sessionModal.newProfileCreated);
-          setSessionModalOpen(false);
-        },
-      });
+        }
+      },
+    });
+  };
+
+  const handleRerollClick = () => {
+    if (remainingRerolls <= 0) {
+      toast.error(t.sessionModal.rerollLimitReached);
+      return;
+    }
+
+    const linksCount = meData?.links_count ?? 0;
+    if (linksCount > 0) {
+      setShowRerollWarning(true);
+    } else {
+      executeReroll();
     }
   };
 
@@ -87,9 +108,9 @@ export function SessionModal() {
           </div>
 
           {sessionKey ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between gap-2 p-3 bg-[var(--av-bg)] border border-[var(--av-border-control)] rounded-lg">
-                <div className="flex flex-wrap gap-1.5 font-mono text-sm font-semibold tracking-wide select-all">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-[var(--av-bg)] border border-[var(--av-border-control)] rounded-lg">
+                <div className="flex flex-wrap gap-1.5 font-mono text-sm font-semibold tracking-wide select-all items-center">
                   {keySegments.map((segment, idx) => (
                     <span
                       key={idx}
@@ -99,16 +120,77 @@ export function SessionModal() {
                     </span>
                   ))}
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleCopyKey}
-                  leftIcon={copied ? <Check className="w-3.5 h-3.5 text-[var(--av-success)]" /> : <Copy className="w-3.5 h-3.5" />}
-                  className="shrink-0"
-                >
-                  {copied ? t.sessionModal.copied : t.sessionModal.copy}
-                </Button>
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleCopyKey}
+                    leftIcon={copied ? <Check className="w-3.5 h-3.5 text-[var(--av-success)]" /> : <Copy className="w-3.5 h-3.5" />}
+                    className="shrink-0"
+                  >
+                    {copied ? t.sessionModal.copied : t.sessionModal.copy}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleRerollClick}
+                    disabled={remainingRerolls <= 0 || createMutation.isPending}
+                    isLoading={createMutation.isPending}
+                    leftIcon={<Dices className="w-3.5 h-3.5 text-[var(--av-cyan)]" />}
+                    className="shrink-0"
+                    title={remainingRerolls <= 0 ? t.sessionModal.rerollLimitReached : `${t.sessionModal.rerollName} (${remainingRerolls}/${MAX_SESSION_REROLLS})`}
+                  >
+                    <span>{t.sessionModal.rerollName}</span>
+                    <span className="ml-1 text-[10px] font-mono opacity-80 px-1 py-0.5 rounded bg-[var(--av-surface-raised)] border border-[var(--av-border-subtle)]">
+                      {remainingRerolls}/{MAX_SESSION_REROLLS}
+                    </span>
+                  </Button>
+                </div>
               </div>
+
+              {/* Warning when rerolling with existing links */}
+              {showRerollWarning && (
+                <div className="p-4 rounded-xl border border-[var(--av-warning)]/60 bg-[var(--av-warning)]/10 space-y-3 animate-in fade-in duration-200">
+                  <div className="flex items-start gap-2.5">
+                    <AlertTriangle className="w-5 h-5 text-[var(--av-warning)] shrink-0 mt-0.5" />
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold text-[var(--av-warning)]">
+                        {t.sessionModal.rerollWarningTitle}
+                      </h4>
+                      <p className="text-xs text-[var(--av-text)] leading-relaxed">
+                        {t.sessionModal.rerollWarningText(meData?.links_count ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-[var(--av-warning)]/20">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleCopyKey}
+                      leftIcon={copied ? <Check className="w-3.5 h-3.5 text-[var(--av-success)]" /> : <Copy className="w-3.5 h-3.5" />}
+                    >
+                      {copied ? t.sessionModal.copied : t.sessionModal.copyCurrentKey}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setShowRerollWarning(false)}
+                    >
+                      {t.sessionModal.cancel}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={executeReroll}
+                      isLoading={createMutation.isPending}
+                      className="bg-[var(--av-warning)]/90 hover:bg-[var(--av-warning)] text-black border-transparent font-medium"
+                    >
+                      {t.sessionModal.confirmReroll}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
               <p className="text-xs avari-muted">
                 {t.sessionModal.keyNotice}
               </p>
@@ -205,7 +287,8 @@ export function SessionModal() {
           <Button
             size="sm"
             variant="ghost"
-            onClick={handleGenerateNew}
+            onClick={handleRerollClick}
+            disabled={remainingRerolls <= 0 || createMutation.isPending}
             isLoading={createMutation.isPending}
             leftIcon={<RefreshCw className="w-3.5 h-3.5" />}
           >
