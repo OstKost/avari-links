@@ -199,9 +199,9 @@ jobs:
       - name: Deploy to Server via SSH
         env:
           SSH_KEY: /home/runner/.ssh/id_deploy
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_PORT: ${{ secrets.SERVER_PORT }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST || '176.53.174.118' }}
+          SERVER_USER: ${{ secrets.SERVER_USER || 'user' }}
+          SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_deploy

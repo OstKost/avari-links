@@ -11,6 +11,7 @@ Environment="BASE_URL=https://links.avari.dev"
 Environment="DB_PATH=/opt/avari-links/data/shortener.db"
 Environment="ENVIRONMENT=production"
 Environment="ALLOWED_ORIGINS=https://links.avari.dev"
+Environment="STATIC_DIR=/var/www/avari-links/frontend"
 ExecStart=/usr/local/bin/avari-links
 Restart=always
 RestartSec=5s

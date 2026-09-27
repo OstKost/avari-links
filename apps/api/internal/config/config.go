@@ -16,6 +16,7 @@ type Config struct {
 	AllowedOrigins     []string `env:"ALLOWED_ORIGINS" envDefault:"http://localhost:4810,http://localhost:4800,http://127.0.0.1:4810"`
 	CodeLength         int      `env:"CODE_LENGTH" envDefault:"6"`
 	BlockedLinkDomains []string `env:"BLOCKED_LINK_DOMAINS"`
+	StaticDir          string   `env:"STATIC_DIR"`
 }
 
 // Load loads configuration from environment variables with sensible defaults.

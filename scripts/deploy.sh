@@ -2,10 +2,10 @@
 set -euo pipefail
 
 # Avari Links Deployment Script
-# Target: 157.22.252.225 (links.avari.dev)
+# Target: 176.53.174.118 (links.avari.dev) with OpenResty Manager
 
-SERVER_HOST="${SERVER_HOST:-157.22.252.225}"
-SERVER_USER="${SERVER_USER:-root}"
+SERVER_HOST="${SERVER_HOST:-176.53.174.118}"
+SERVER_USER="${SERVER_USER:-user}"
 SERVER_PORT="${SERVER_PORT:-22}"
 SSH_KEY="${SSH_KEY:-}"
 
@@ -43,60 +43,46 @@ trap 'rm -rf \"\${REMOTE_TMP}\"' EXIT
 # Extract payload
 tar -xzf - -C \"\${REMOTE_TMP}\"
 
-# 1. Prepare directories
-mkdir -p /opt/avari-links/data /var/www/avari-links/frontend /etc/systemd/system
+# 1. Prepare directories with sudo
+sudo mkdir -p /opt/avari-links/data /var/www/avari-links/frontend /etc/systemd/system
 
 # 2. Deploy binary
 chmod +x \"\${REMOTE_TMP}/avari-links\"
-mv \"\${REMOTE_TMP}/avari-links\" /usr/local/bin/avari-links
+sudo mv \"\${REMOTE_TMP}/avari-links\" /usr/local/bin/avari-links
 
 # 3. Deploy frontend static
-rm -rf /var/www/avari-links/frontend/*
-cp -r \"\${REMOTE_TMP}/web/\"* /var/www/avari-links/frontend/
+sudo rm -rf /var/www/avari-links/frontend/*
+sudo cp -r \"\${REMOTE_TMP}/web/\"* /var/www/avari-links/frontend/
 
-# 4. Configure systemd
-cp \"\${REMOTE_TMP}/avari-links.service\" /etc/systemd/system/avari-links.service
-systemctl daemon-reload
-systemctl enable avari-links.service
-systemctl restart avari-links.service
+# 4. Configure systemd service
+sudo cp \"\${REMOTE_TMP}/avari-links.service\" /etc/systemd/system/avari-links.service
+sudo systemctl daemon-reload
+sudo systemctl enable avari-links.service
+sudo systemctl restart avari-links.service
 
-# 5. Configure Caddy
-if ! grep -q 'links.avari.dev' /etc/caddy/Caddyfile; then
-    cat << 'CADDY_EOF' >> /etc/caddy/Caddyfile
+# 5. Ensure OpenResty Manager upstream & site config
+if [ -d /opt/om/nginx/conf/upstreams ]; then
+    echo 'upstream 6 {
+server 127.0.0.1:4820;
+keepalive 64;
+}' | sudo tee /opt/om/nginx/conf/upstreams/6.conf > /dev/null
 
-# Avari Links (URL Shortener & Analytics)
-links.avari.dev, http://links.avari.dev {
-    handle /api/* {
-        reverse_proxy localhost:4820
-    }
-    handle /s/* {
-        reverse_proxy localhost:4820
-    }
-    handle /healthz {
-        reverse_proxy localhost:4820
-    }
-    handle /swagger/* {
-        reverse_proxy localhost:4820
-    }
-    handle {
-        root * /var/www/avari-links/frontend
-        try_files {path} /index.html
-        file_server
-    }
-    encode gzip zstd
-}
-CADDY_EOF
-    echo 'Added links.avari.dev configuration to Caddyfile'
+    if [ -f /opt/om/nginx/conf/sites/3.conf ]; then
+        sudo sed -i 's|proxy_pass '\''http://[0-9]*/'\'';|proxy_pass '\''http://6/'\'';|g' /opt/om/nginx/conf/sites/3.conf
+    fi
+
+    if which openresty >/dev/null 2>&1; then
+        sudo openresty -t -p /opt/om/nginx -c /opt/om/nginx/conf/nginx.conf && sudo openresty -p /opt/om/nginx -s reload || true
+    fi
 fi
-
-caddy reload --config /etc/caddy/Caddyfile
 
 # 6. Verify service
 sleep 2
-systemctl is-active avari-links.service
+sudo systemctl is-active avari-links.service
 curl -s -f http://127.0.0.1:4820/healthz
 echo ''
-echo 'Remote deployment successful!'
+echo 'Remote deployment to 176.53.174.118 successful!'
 "
 
 echo "===> Deployment completed successfully!"
+

@@ -80,6 +80,7 @@ func main() {
 		SessionService:  sessionService,
 		DB:              db,
 		AllowedOrigins:  cfg.AllowedOrigins,
+		StaticDir:       cfg.StaticDir,
 	})
 
 	server := &http.Server{

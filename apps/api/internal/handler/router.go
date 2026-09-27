@@ -3,6 +3,8 @@ package handler
 import (
 	"database/sql"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	_ "github.com/OstKost/avari-links/apps/api/docs" // Swagger generated docs
@@ -21,6 +23,7 @@ type RouterConfig struct {
 	SessionService  domain.SessionService
 	DB              *sql.DB
 	AllowedOrigins  []string
+	StaticDir       string
 }
 
 // NewRouter builds and configures the Chi HTTP router.
@@ -86,6 +89,28 @@ func NewRouter(cfg RouterConfig) http.Handler {
 		})
 
 	})
+
+	// Static files & SPA Single Page App fallback
+	if cfg.StaticDir != "" {
+		fs := http.FileServer(http.Dir(cfg.StaticDir))
+		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+			cleanPath := filepath.Clean(r.URL.Path)
+			target := filepath.Join(cfg.StaticDir, cleanPath)
+			info, err := os.Stat(target)
+			if err == nil && !info.IsDir() {
+				fs.ServeHTTP(w, r)
+				return
+			}
+			if r.Method == http.MethodGet || r.Method == http.MethodHead {
+				indexPath := filepath.Join(cfg.StaticDir, "index.html")
+				if _, err := os.Stat(indexPath); err == nil {
+					http.ServeFile(w, r, indexPath)
+					return
+				}
+			}
+			respondError(w, http.StatusNotFound, "Resource not found")
+		})
+	}
 
 	return r
 }
