@@ -111,16 +111,30 @@ echo "===> Stopping and disabling Caddy (preserving configs, switching to OpenRe
 sudo systemctl stop caddy 2>/dev/null || true
 sudo systemctl disable caddy 2>/dev/null || true
 
-echo "===> Starting / Reloading OpenResty web server..."
-if which openresty >/dev/null 2>&1; then
-    sudo openresty -t 2>/dev/null || true
-    sudo systemctl restart openresty 2>/dev/null || sudo systemctl start openresty 2>/dev/null || sudo openresty -s reload 2>/dev/null || sudo openresty 2>/dev/null || true
-elif [ -f /opt/om/nginx/sbin/nginx ]; then
-    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
-    sudo systemctl restart openresty 2>/dev/null || sudo systemctl start openresty 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ 2>/dev/null || true
+echo "===> Diagnosing OpenResty / Nginx binaries and services on host..."
+which openresty nginx 2>/dev/null || true
+systemctl list-unit-files | grep -E 'openresty|nginx|om|1panel|caddy' || true
+
+echo "===> Searching for OpenResty/Nginx binaries on filesystem..."
+find /usr /opt /etc -name "openresty" -o -name "nginx" 2>/dev/null || true
+
+echo "===> Checking OpenResty / Nginx service status..."
+sudo systemctl status openresty --no-pager 2>/dev/null || sudo systemctl status nginx --no-pager 2>/dev/null || true
+
+echo "===> Starting OpenResty / Nginx..."
+if [ -f /opt/om/nginx/sbin/nginx ]; then
+    echo "Found /opt/om/nginx/sbin/nginx, testing config:"
+    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf || true
+    echo "Starting /opt/om/nginx/sbin/nginx..."
+    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload || true
+elif which openresty >/dev/null 2>&1; then
+    echo "Found openresty CLI, testing config:"
+    sudo openresty -t || true
+    sudo systemctl restart openresty || sudo systemctl start openresty || sudo openresty || true
 elif which nginx >/dev/null 2>&1; then
-    sudo nginx -t 2>/dev/null || true
-    sudo systemctl restart nginx 2>/dev/null || sudo systemctl start nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || sudo nginx 2>/dev/null || true
+    echo "Found nginx CLI, testing config:"
+    sudo nginx -t || true
+    sudo systemctl restart nginx || sudo systemctl start nginx || sudo nginx || true
 fi
 
 echo "===> Inspecting OpenResty / Nginx setup on host..."
@@ -138,6 +152,7 @@ echo ''
 echo "===> Testing HTTP/HTTPS serving via OpenResty:"
 curl -s http://127.0.0.1/ | grep -E "assets/index" || true
 curl -s --resolve "links.avari.dev:443:127.0.0.1" https://links.avari.dev/ 2>/dev/null | grep -E "assets/index" || true
+curl -sI http://127.0.0.1/ || true
 echo 'Remote deployment to 176.53.174.118 successful!'
 REMOTE_INSTALL_EOF
 
