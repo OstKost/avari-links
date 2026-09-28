@@ -113,16 +113,34 @@ sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
 echo "===> Checking listening ports on host (80, 443, 4820)..."
 sudo ss -tulpn | grep -E ':80 |:443 |:4820 ' || true
 
-echo "===> Inspecting Caddyfile configuration..."
+echo "===> Configuring Caddyfile for links.avari.dev with proper cache headers..."
 if [ -f /etc/caddy/Caddyfile ]; then
-    grep -A 25 "links.avari.dev" /etc/caddy/Caddyfile 2>/dev/null || true
-    # If Caddyfile specifies a root directory, sync frontend there too
-    CADDY_ROOT=$(grep -A 15 "links.avari.dev" /etc/caddy/Caddyfile | grep -oP 'root\s+\*\s+\K\S+' 2>/dev/null || true)
-    if [ -n "${CADDY_ROOT}" ] && [ -d "${CADDY_ROOT}" ]; then
-        echo "Updating Caddy root directory: ${CADDY_ROOT}"
-        sudo rm -rf "${CADDY_ROOT}/"*
-        sudo cp -r "${SCRIPT_DIR}/web/"* "${CADDY_ROOT}/"
-    fi
+    sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDY_EOF'
+links.avari.dev, http://links.avari.dev {
+    handle /api/* {
+        reverse_proxy localhost:4820
+    }
+    handle /s/* {
+        reverse_proxy localhost:4820
+    }
+    handle /healthz {
+        reverse_proxy localhost:4820
+    }
+    handle /swagger/* {
+        reverse_proxy localhost:4820
+    }
+    handle {
+        root * /var/www/avari-links/frontend
+        @index path / /index.html
+        header @index Cache-Control "no-cache, no-store, must-revalidate"
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        try_files {path} /index.html
+        file_server
+    }
+    encode gzip zstd
+}
+CADDY_EOF
 fi
 
 echo "===> Restarting and reloading Caddy web server..."
