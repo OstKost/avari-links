@@ -111,17 +111,25 @@ sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
 echo "===> Checking listening ports on host (80, 443, 4820)..."
 sudo ss -tulpn | grep -E ':80 |:443 |:4820 ' || true
 
-echo "===> Inspecting OpenResty / Nginx site configs..."
-for f in $(sudo find /opt/om /etc/nginx /usr/local/openresty -name "*.conf" 2>/dev/null | grep -E 'sites|conf\.d|vhost'); do
-    echo "--- File: $f ---"
-    sudo cat "$f" || true
-done
+echo "===> Inspecting Caddyfile configuration..."
+if [ -f /etc/caddy/Caddyfile ]; then
+    grep -A 25 "links.avari.dev" /etc/caddy/Caddyfile 2>/dev/null || true
+    # If Caddyfile specifies a root directory, sync frontend there too
+    CADDY_ROOT=$(grep -A 15 "links.avari.dev" /etc/caddy/Caddyfile | grep -oP 'root\s+\*\s+\K\S+' 2>/dev/null || true)
+    if [ -n "${CADDY_ROOT}" ] && [ -d "${CADDY_ROOT}" ]; then
+        echo "Updating Caddy root directory: ${CADDY_ROOT}"
+        sudo rm -rf "${CADDY_ROOT}/"*
+        sudo cp -r "${SCRIPT_DIR}/web/"* "${CADDY_ROOT}/"
+    fi
+fi
 
-echo "===> Testing localhost OpenResty proxy on HTTP (port 80) and HTTPS (port 443):"
-curl -s -H "Host: links.avari.dev" http://127.0.0.1/ | grep -E "assets/index" || true
-curl -s -k -H "Host: links.avari.dev" https://127.0.0.1/ | grep -E "assets/index" || true
+echo "===> Reloading and restarting web servers (Caddy, OpenResty, Nginx)..."
+sudo systemctl reload caddy 2>/dev/null || sudo systemctl restart caddy 2>/dev/null || true
+sudo caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
+sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
+sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
 
-echo "===> Testing direct public IP port 443 response:"
+echo "===> Testing direct public IP port 443 response after Caddy reload:"
 curl -s -k -H "Host: links.avari.dev" https://176.53.174.118/ | grep -E "assets/index" || true
 
 echo "===> Verifying service health..."
