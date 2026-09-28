@@ -1,15 +1,18 @@
 import { useState } from 'react';
 import type { LinkPreview } from '@/entities/link/types';
-import { Globe, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { useTranslation } from '@/shared/i18n';
+import { Globe, AlertTriangle, CheckCircle2, ExternalLink, Loader2, Sparkles, Image as ImageIcon, X } from 'lucide-react';
 
 interface LinkPreviewCardProps {
   isLoading: boolean;
   preview: LinkPreview | null;
   targetUrl?: string;
   className?: string;
+  onClose?: () => void;
 }
 
-export function LinkPreviewCard({ isLoading, preview, targetUrl, className = '' }: LinkPreviewCardProps) {
+export function LinkPreviewCard({ isLoading, preview, targetUrl, className = '', onClose }: LinkPreviewCardProps) {
+  const { t } = useTranslation();
   const [imageError, setImageError] = useState(false);
   const [faviconError, setFaviconError] = useState(false);
 
@@ -80,9 +83,22 @@ export function LinkPreviewCard({ isLoading, preview, targetUrl, className = '' 
             <AlertTriangle className="w-4 h-4 shrink-0 text-[var(--av-warning)]" />
             <span>Сайт не отвечает</span>
           </div>
-          <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border border-[var(--av-warning)]/30 text-[var(--av-warning)] bg-[var(--av-warning)]/10">
-            {preview.status_code > 0 ? `HTTP ${preview.status_code}` : 'Ошибка соединения'}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono border border-[var(--av-warning)]/30 text-[var(--av-warning)] bg-[var(--av-warning)]/10">
+              {preview.status_code > 0 ? `HTTP ${preview.status_code}` : 'Ошибка соединения'}
+            </span>
+            {onClose && (
+              <button
+                type="button"
+                onClick={onClose}
+                className="p-1 rounded-lg text-[var(--av-text-muted)] hover:text-[var(--av-text)] hover:bg-[var(--av-surface-raised)] transition-colors cursor-pointer"
+                aria-label={t.common.closePreview}
+                title={t.common.closePreview}
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="space-y-2 py-1 text-sm">
@@ -107,7 +123,7 @@ export function LinkPreviewCard({ isLoading, preview, targetUrl, className = '' 
     <div
       className={`group relative overflow-hidden rounded-2xl border border-[var(--av-border-subtle)] hover:border-[var(--av-cyan)]/40 bg-[var(--av-surface)] p-5 backdrop-blur-md shadow-2xl space-y-3.5 transition-all duration-300 ${className}`}
     >
-      {/* Top Header: Favicon, Domain, Status Badge */}
+      {/* Top Header: Favicon, Domain, Status Badge, Close button */}
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {preview.favicon_url && !faviconError ? (
@@ -125,10 +141,23 @@ export function LinkPreviewCard({ isLoading, preview, targetUrl, className = '' 
           </span>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium text-[var(--av-success)] bg-[var(--av-success)]/10 border border-[var(--av-success)]/20 shrink-0">
-          <CheckCircle2 className="w-3 h-3 text-[var(--av-success)]" />
-          {preview.status_code ? `${preview.status_code} OK` : 'Доступен'}
-        </span>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-mono font-medium text-[var(--av-success)] bg-[var(--av-success)]/10 border border-[var(--av-success)]/20">
+            <CheckCircle2 className="w-3 h-3 text-[var(--av-success)]" />
+            {preview.status_code ? `${preview.status_code} OK` : 'Доступен'}
+          </span>
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1 rounded-lg text-[var(--av-text-muted)] hover:text-[var(--av-text)] hover:bg-[var(--av-surface-raised)] transition-colors cursor-pointer"
+              aria-label={t.common.closePreview}
+              title={t.common.closePreview}
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Preview Image (if available) */}

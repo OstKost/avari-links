@@ -62,9 +62,142 @@ func NewPreviewService(timeout ...time.Duration) domain.PreviewService {
 	}
 }
 
+// NormalizeTargetURL ensures a URL has a default https:// scheme if omitted.
+func NormalizeTargetURL(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return trimmed
+	}
+	// If it has an explicit other scheme like ftp:// or custom://, don't prepend
+	if strings.Contains(trimmed, "://") {
+		return trimmed
+	}
+	// Only auto-prefix if host portion looks like a domain name with a dot or localhost
+	hostPart := strings.SplitN(trimmed, "/", 2)[0]
+	if strings.Contains(hostPart, ".") || strings.HasPrefix(lower, "localhost") {
+		return "https://" + trimmed
+	}
+	return trimmed
+}
+
+var (
+	// nsfwRoots are substrings that unequivocally indicate adult content in URLs or page text.
+	nsfwRoots = []string{
+		"pornhub", "xvideos", "xhamster", "xnxx", "redtube", "youporn",
+		"brazzers", "chaturbate", "onlyfans", "stripchat", "bongacams",
+		"livejasmin", "cam4", "camsoda", "beeg", "spankbang", "eporner",
+		"tnaflix", "tube8", "youjizz", "fapdu", "hqporner", "rule34",
+		"nhentai", "luscious", "erome", "manyvids", "fansly",
+		"porn", "porno", "порно", "хентай", "hentai",
+		"erotic", "erotica", "эротик", "эротика",
+		"сиськи", "минет", "кунилингус", "дилдо", "вибратор",
+		"шлюх", "проститут", "эскорт", "интим", "онлифанс",
+		"нюдс", "rta-5042", "sex-shop", "секс-шоп", "сексшоп",
+	}
+
+	// nsfwTokens are standalone words or domain tokens that indicate adult content.
+	nsfwTokens = map[string]bool{
+		"sex": true, "секс": true, "xxx": true, "18+": true, "r18": true,
+		"nsfw": true, "adult": true, "adults": true, "nude": true, "nudes": true,
+		"nudity": true, "boobs": true, "tits": true, "pussy": true, "dick": true,
+		"milf": true, "bdsm": true, "fetish": true, "escort": true,
+		"camgirl": true, "hardcore": true, "blowjob": true, "creampie": true,
+		"gangbang": true, "masturbat": true, "masturbation": true,
+		"член": true, "анал": true, "анальный": true, "трах": true,
+		"трахать": true, "голая": true, "голые": true, "вебкам": true,
+		"дроч": true, "дрочить": true, "mature": true,
+	}
+)
+
+// HasNSFWWords checks a text snippet for adult/NSFW keywords and rating indicators.
+func HasNSFWWords(text string) bool {
+	if text == "" {
+		return false
+	}
+	lower := strings.ToLower(text)
+
+	// Check substring roots
+	for _, root := range nsfwRoots {
+		if strings.Contains(lower, root) {
+			return true
+		}
+	}
+
+	// Tokenize text into words
+	tokens := strings.FieldsFunc(lower, func(r rune) bool {
+		if r == '+' || r == '-' {
+			return false
+		}
+		return !((r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || (r >= 'а' && r <= 'я') || r == 'ё')
+	})
+
+	for _, token := range tokens {
+		trimmed := strings.Trim(token, "-")
+		if trimmed == "" {
+			continue
+		}
+		if nsfwTokens[trimmed] {
+			return true
+		}
+		if strings.HasPrefix(trimmed, "18+") || strings.HasPrefix(trimmed, "r18") {
+			return true
+		}
+	}
+
+	return false
+}
+
+// LooksNSFW checks if URL hostname, path, query, or associated site text contain adult/NSFW keywords.
+func LooksNSFW(u *url.URL, extraText ...string) bool {
+	if u != nil {
+		hostLower := strings.ToLower(u.Hostname())
+		// Check full hostname against roots
+		for _, root := range nsfwRoots {
+			if strings.Contains(hostLower, root) {
+				return true
+			}
+		}
+
+		// Check hostname labels and segments
+		for _, label := range strings.FieldsFunc(hostLower, func(r rune) bool {
+			return r == '.' || r == '-' || r == '_'
+		}) {
+			if nsfwTokens[label] || strings.HasPrefix(label, "18+") || strings.HasPrefix(label, "r18") {
+				return true
+			}
+		}
+
+		// Check path segments
+		for _, segment := range strings.FieldsFunc(strings.ToLower(u.Path), func(r rune) bool {
+			return r == '/' || r == '-' || r == '_' || r == '.'
+		}) {
+			if HasNSFWWords(segment) {
+				return true
+			}
+		}
+
+		// Check raw query
+		if u.RawQuery != "" && HasNSFWWords(u.RawQuery) {
+			return true
+		}
+	}
+
+	for _, text := range extraText {
+		if HasNSFWWords(text) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // Inspect fetches the target URL and extracts OpenGraph/HTML metadata.
 func (s *previewService) Inspect(ctx context.Context, rawURL string) (*domain.LinkPreview, error) {
-	trimmed := strings.TrimSpace(rawURL)
+	trimmed := NormalizeTargetURL(rawURL)
 	if trimmed == "" {
 		return nil, domain.ErrInvalidURL
 	}
@@ -82,6 +215,7 @@ func (s *previewService) Inspect(ctx context.Context, rawURL string) (*domain.Li
 		return &domain.LinkPreview{
 			URL:         trimmed,
 			IsReachable: false,
+			IsNSFW:      LooksNSFW(parsed),
 			Error:       fmt.Sprintf("failed to create request: %v", err),
 		}, nil
 	}
@@ -95,10 +229,14 @@ func (s *previewService) Inspect(ctx context.Context, rawURL string) (*domain.Li
 		return &domain.LinkPreview{
 			URL:         trimmed,
 			IsReachable: false,
+			IsNSFW:      LooksNSFW(parsed),
 			Error:       formatNetworkError(err),
 		}, nil
 	}
 	defer resp.Body.Close()
+
+	ratingHeader := resp.Header.Get("Rating")
+	ageRatingHeader := resp.Header.Get("Age-Rating")
 
 	preview := &domain.LinkPreview{
 		URL:         trimmed,
@@ -107,13 +245,14 @@ func (s *previewService) Inspect(ctx context.Context, rawURL string) (*domain.Li
 	}
 
 	if resp.StatusCode >= 400 {
+		preview.IsNSFW = LooksNSFW(parsed, ratingHeader, ageRatingHeader)
 		preview.Error = fmt.Sprintf("HTTP status %d %s", resp.StatusCode, http.StatusText(resp.StatusCode))
 		return preview, nil
 	}
 
-	// Read limited HTML stream
+	// Read limited HTML stream and extract metadata and page text
 	limitedReader := io.LimitReader(resp.Body, maxHTMLReadBytes)
-	s.extractMetadata(limitedReader, resp.Request.URL, preview)
+	extraPageWords := s.extractMetadata(limitedReader, resp.Request.URL, preview)
 
 	// Fallback title if not found
 	if preview.Title == "" {
@@ -129,10 +268,12 @@ func (s *previewService) Inspect(ctx context.Context, rawURL string) (*domain.Li
 		preview.FaviconURL = fmt.Sprintf("%s://%s/favicon.ico", parsed.Scheme, parsed.Host)
 	}
 
+	preview.IsNSFW = LooksNSFW(parsed, preview.Title, preview.Description, preview.SiteName, ratingHeader, ageRatingHeader, extraPageWords)
+
 	return preview, nil
 }
 
-func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview *domain.LinkPreview) {
+func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview *domain.LinkPreview) string {
 	tokenizer := html.NewTokenizer(r)
 
 	var (
@@ -146,8 +287,13 @@ func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview 
 		twitterImage    string
 		favicon         string
 		ogSiteName      string
+		metaKeywords    string
+		metaRating      string
 		inTitleTag      bool
+		inBodyTag       bool
+		inScriptOrStyle bool
 		titleTextBuffer strings.Builder
+		bodyTextBuffer  strings.Builder
 	)
 
 	for {
@@ -156,7 +302,7 @@ func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview 
 		case html.ErrorToken:
 			// EOF or read error
 			finalizeExtracted(preview, baseURL, rawTitle, ogTitle, twitterTitle, ogDesc, metaDesc, twitterDesc, ogImage, twitterImage, favicon, ogSiteName)
-			return
+			return metaKeywords + " " + metaRating + " " + bodyTextBuffer.String()
 
 		case html.StartTagToken, html.SelfClosingTagToken:
 			token := tokenizer.Token()
@@ -165,6 +311,10 @@ func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview 
 			if tagName == "title" {
 				inTitleTag = true
 				titleTextBuffer.Reset()
+			} else if tagName == "body" {
+				inBodyTag = true
+			} else if tagName == "script" || tagName == "style" || tagName == "noscript" || tagName == "svg" {
+				inScriptOrStyle = true
 			} else if tagName == "meta" {
 				var prop, name, content string
 				for _, attr := range token.Attr {
@@ -214,6 +364,14 @@ func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview 
 					if twitterImage == "" {
 						twitterImage = content
 					}
+				case "keywords":
+					if metaKeywords == "" {
+						metaKeywords = content
+					}
+				case "rating", "age-rating", "rating-rta":
+					if metaRating == "" {
+						metaRating = content
+					}
 				}
 			} else if tagName == "link" {
 				var rel, href string
@@ -231,22 +389,30 @@ func (s *previewService) extractMetadata(r io.Reader, baseURL *url.URL, preview 
 			}
 
 		case html.TextToken:
+			textData := tokenizer.Token().Data
 			if inTitleTag {
-				titleTextBuffer.WriteString(tokenizer.Token().Data)
+				titleTextBuffer.WriteString(textData)
+			} else if inBodyTag && !inScriptOrStyle {
+				// Accumulate words from visible page body up to 32KB
+				if bodyTextBuffer.Len() < 32768 {
+					trimmed := strings.TrimSpace(textData)
+					if trimmed != "" {
+						bodyTextBuffer.WriteString(" ")
+						bodyTextBuffer.WriteString(trimmed)
+					}
+				}
 			}
 
 		case html.EndTagToken:
 			token := tokenizer.Token()
-			if strings.ToLower(token.Data) == "title" {
+			tagName := strings.ToLower(token.Data)
+			if tagName == "title" {
 				inTitleTag = false
 				if rawTitle == "" {
 					rawTitle = strings.TrimSpace(titleTextBuffer.String())
 				}
-			}
-			// Stop scanning if we exited </head> to save time and memory
-			if strings.ToLower(token.Data) == "head" {
-				finalizeExtracted(preview, baseURL, rawTitle, ogTitle, twitterTitle, ogDesc, metaDesc, twitterDesc, ogImage, twitterImage, favicon, ogSiteName)
-				return
+			} else if tagName == "script" || tagName == "style" || tagName == "noscript" || tagName == "svg" {
+				inScriptOrStyle = false
 			}
 		}
 	}

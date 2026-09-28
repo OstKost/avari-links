@@ -1,6 +1,54 @@
 import { z } from 'zod';
 import { translations, type Language } from '@/shared/i18n/translations';
 
+const NSFW_URL_PATTERNS = [
+  /pornhub/i,
+  /xvideos/i,
+  /xhamster/i,
+  /xnxx/i,
+  /redtube/i,
+  /youporn/i,
+  /brazzers/i,
+  /chaturbate/i,
+  /onlyfans/i,
+  /stripchat/i,
+  /bongacams/i,
+  /eporner/i,
+  /spankbang/i,
+  /rule34/i,
+  /nhentai/i,
+  /hentai/i,
+  /erotic/i,
+  /эротик/i,
+  /порно/i,
+  /секс-шоп/i,
+  /сексшоп/i,
+  /sex-shop/i,
+  /\bporn\b/i,
+  /\bxxx\b/i,
+  /\b18\+\b/i,
+  /\br18\b/i,
+];
+
+export function isKnownNSFWUrl(rawUrl: string): boolean {
+  const trimmed = rawUrl.trim();
+  if (!trimmed) return false;
+  return NSFW_URL_PATTERNS.some((pattern) => pattern.test(trimmed));
+}
+
+export function normalizeUrlInput(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return '';
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  const hostPart = trimmed.split('/')[0];
+  if (hostPart.includes('.') || hostPart.toLowerCase().startsWith('localhost')) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
 export function getCreateLinkSchema(isPremium: boolean = false, lang: Language = 'ru') {
   const dict = translations[lang].createForm;
 
@@ -8,7 +56,8 @@ export function getCreateLinkSchema(isPremium: boolean = false, lang: Language =
     original_url: z
       .string()
       .min(1, dict.validation.urlRequired)
-      .url(dict.validation.urlInvalid),
+      .transform(normalizeUrlInput)
+      .pipe(z.string().url(dict.validation.urlInvalid)),
     title: z
       .string()
       .max(120, dict.validation.titleMax)

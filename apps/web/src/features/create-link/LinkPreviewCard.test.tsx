@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { screen, fireEvent } from '@testing-library/react';
 import { LinkPreviewCard } from './LinkPreviewCard';
 import { renderWithProviders } from '@/test/test-utils';
 
@@ -52,5 +52,26 @@ describe('LinkPreviewCard', () => {
       'href',
       'https://github.com/OstKost/avari-links'
     );
+  });
+
+  it('renders close button and fires onClose when clicked', () => {
+    const onClose = vi.fn();
+    renderWithProviders(
+      <LinkPreviewCard
+        isLoading={false}
+        preview={{
+          url: 'https://example.com',
+          is_reachable: true,
+          status_code: 200,
+          title: 'Example',
+        }}
+        onClose={onClose}
+      />
+    );
+
+    const closeBtn = screen.getByRole('button', { name: /закрыть предпросмотр/i });
+    expect(closeBtn).toBeInTheDocument();
+    fireEvent.click(closeBtn);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

@@ -108,4 +108,125 @@ func TestPreviewService_Inspect(t *testing.T) {
 		_, err := svc.Inspect(context.Background(), "invalid-scheme://foo")
 		assert.ErrorIs(t, err, domain.ErrInvalidURL)
 	})
+
+	t.Run("detects NSFW adult keywords in domain and title", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>Adult Gallery 18+ Only</title>
+				</head>
+				<body></body>
+				</html>
+			`))
+		}))
+		defer ts.Close()
+
+		svc := NewPreviewService(2 * time.Second)
+		preview, err := svc.Inspect(context.Background(), ts.URL)
+		require.NoError(t, err)
+		assert.True(t, preview.IsNSFW)
+	})
+
+	t.Run("detects NSFW by words inside page body text", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>Generic Portal</title>
+				</head>
+				<body>
+					<h1>Каталог медиа</h1>
+					<p>Смотрите лучшее порно и эротические ролики в высоком качестве онлайн.</p>
+				</body>
+				</html>
+			`))
+		}))
+		defer ts.Close()
+
+		svc := NewPreviewService(2 * time.Second)
+		preview, err := svc.Inspect(context.Background(), ts.URL)
+		require.NoError(t, err)
+		assert.True(t, preview.IsNSFW)
+	})
+
+	t.Run("detects NSFW by meta rating or keywords tag", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>Entertainment Club</title>
+					<meta name="rating" content="RTA-5042-1996-1400-1577-RTA" />
+					<meta name="keywords" content="hentai, clips, adult games" />
+				</head>
+				<body>
+					<p>Welcome</p>
+				</body>
+				</html>
+			`))
+		}))
+		defer ts.Close()
+
+		svc := NewPreviewService(2 * time.Second)
+		preview, err := svc.Inspect(context.Background(), ts.URL)
+		require.NoError(t, err)
+		assert.True(t, preview.IsNSFW)
+	})
+
+	t.Run("does not false-positive on innocent words like Sussex or analytics", func(t *testing.T) {
+		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`
+				<!DOCTYPE html>
+				<html>
+				<head>
+					<title>University of Sussex Data Analytics</title>
+					<meta name="description" content="Official research portal for Sussex university analysis." />
+				</head>
+				<body>
+					<h1>Department of Analytics</h1>
+					<p>Passport and immigration analysis studies in Middlesex and Essex.</p>
+				</body>
+				</html>
+			`))
+		}))
+		defer ts.Close()
+
+		svc := NewPreviewService(2 * time.Second)
+		preview, err := svc.Inspect(context.Background(), ts.URL)
+		require.NoError(t, err)
+		assert.False(t, preview.IsNSFW)
+	})
+
+	t.Run("normalizes domain URLs without scheme", func(t *testing.T) {
+		assert.Equal(t, "https://ya.ru", NormalizeTargetURL("ya.ru"))
+		assert.Equal(t, "https://google.com/search?q=test", NormalizeTargetURL("google.com/search?q=test"))
+		assert.Equal(t, "http://custom.org", NormalizeTargetURL("http://custom.org"))
+	})
+}
+
+func TestHasNSFWWords(t *testing.T) {
+	assert.True(t, HasNSFWWords("pornhub.com"))
+	assert.True(t, HasNSFWWords("https://rt.pornhub.com/view_video.php"))
+	assert.True(t, HasNSFWWords("Free Porn Videos & Sex Movies - Porno, XXX, Porn Tube | Pornhub"))
+	assert.True(t, HasNSFWWords("Эксклюзивное порно онлайн"))
+	assert.True(t, HasNSFWWords("секс-шоп товары 18+"))
+	assert.True(t, HasNSFWWords("RTA-5042-1996-1400-1577-RTA"))
+	assert.True(t, HasNSFWWords("Onlyfans leak content"))
+	assert.True(t, HasNSFWWords("Хентай комиксы и манга"))
+
+	assert.False(t, HasNSFWWords("University of Sussex"))
+	assert.False(t, HasNSFWWords("Google Analytics Dashboard"))
+	assert.False(t, HasNSFWWords("Middlesex county council"))
+	assert.False(t, HasNSFWWords("Passport control"))
 }

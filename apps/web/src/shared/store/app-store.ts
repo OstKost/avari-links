@@ -102,7 +102,16 @@ export const useAppStore = create<AppState>((set) => {
     isSessionModalOpen: false,
     setSessionModalOpen: (isSessionModalOpen) => set({ isSessionModalOpen }),
     sessionKey: savedSessionKey,
-    setSessionKey: (sessionKey) => set({ sessionKey }),
+    setSessionKey: (sessionKey) => {
+      if (typeof window !== 'undefined') {
+        if (sessionKey) {
+          localStorage.setItem(SESSION_KEY_STORAGE, sessionKey);
+        } else {
+          localStorage.removeItem(SESSION_KEY_STORAGE);
+        }
+      }
+      set({ sessionKey });
+    },
     selectedQRLink: null,
     setSelectedQRLink: (selectedQRLink) => set({ selectedQRLink }),
     rerollsCount: initialRerolls,

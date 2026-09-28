@@ -33,6 +33,7 @@ type PreviewLinkResponse struct {
 	ImageURL    string `json:"image_url,omitempty" example:"https://opengraph.githubassets.com/..."`
 	FaviconURL  string `json:"favicon_url,omitempty" example:"https://github.com/favicon.ico"`
 	SiteName    string `json:"site_name,omitempty" example:"GitHub"`
+	IsNSFW      bool   `json:"is_nsfw" example:"false"`
 	Error       string `json:"error,omitempty"`
 }
 

@@ -44,6 +44,7 @@ export const translations = {
       nsfwBadge: '18+',
       nsfwDescription:
         'Посетитель увидит предупреждение перед переходом. Отметьте, если ссылка ведёт на материалы для взрослых.',
+      nsfwDetected: 'Обнаружен контент 18+. Флаг установлен автоматически.',
       submitButton: 'Создать короткую ссылку',
       checkingSite: 'Проверяем сайт...',
       retryCheck: 'Повторить проверку',
@@ -194,6 +195,7 @@ export const translations = {
     },
     common: {
       closeModal: 'Закрыть окно',
+      closePreview: 'Закрыть предпросмотр',
     },
   },
   en: {
@@ -239,6 +241,7 @@ export const translations = {
       nsfwBadge: '18+',
       nsfwDescription:
         'Visitors will see a warning before redirection. Check this if the destination contains adult content.',
+      nsfwDetected: '18+ content detected automatically. Flag locked.',
       submitButton: 'Create short link',
       checkingSite: 'Checking website...',
       retryCheck: 'Retry verification',
@@ -389,6 +392,7 @@ export const translations = {
     },
     common: {
       closeModal: 'Close modal',
+      closePreview: 'Close preview',
     },
   },
 } as const;

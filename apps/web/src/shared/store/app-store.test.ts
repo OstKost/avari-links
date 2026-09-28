@@ -71,6 +71,11 @@ describe('useAppStore', () => {
   it('stores and updates sessionKey and selectedQRLink', () => {
     useAppStore.getState().setSessionKey('alpha-beta-gamma-1234');
     expect(useAppStore.getState().sessionKey).toBe('alpha-beta-gamma-1234');
+    expect(localStorage.getItem('avari_session_key')).toBe('alpha-beta-gamma-1234');
+
+    useAppStore.getState().setSessionKey(null);
+    expect(useAppStore.getState().sessionKey).toBeNull();
+    expect(localStorage.getItem('avari_session_key')).toBeNull();
 
     const qrData = { url: 'http://localhost/s/xyz', title: 'Test Link', code: 'xyz' };
     useAppStore.getState().setSelectedQRLink(qrData);

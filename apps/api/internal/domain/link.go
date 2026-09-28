@@ -73,6 +73,7 @@ type LinkPreview struct {
 	ImageURL    string `json:"image_url,omitempty"`
 	FaviconURL  string `json:"favicon_url,omitempty"`
 	SiteName    string `json:"site_name,omitempty"`
+	IsNSFW      bool   `json:"is_nsfw"`
 	Error       string `json:"error,omitempty"`
 }
 

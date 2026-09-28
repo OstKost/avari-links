@@ -255,7 +255,7 @@ describe('CreateLinkForm', () => {
     });
   });
 
-  it('keeps preview active and locks submit button for 5 seconds upon success', async () => {
+  it('keeps preview active and locks submit button for 30 seconds upon success', async () => {
     const onPreviewStateChange = vi.fn();
     vi.mocked(linkApi.preview).mockResolvedValueOnce({
       url: 'https://example.com/test-hold',
@@ -296,11 +296,90 @@ describe('CreateLinkForm', () => {
       'https://example.com/test-hold'
     );
 
-    // Button is disabled during 5s cooldown
+    // Button is disabled during 30s cooldown
     await waitFor(() => {
-      const cooldownBtn = screen.getByRole('button', { name: /создано \(5с\)/i });
+      const cooldownBtn = screen.getByRole('button', { name: /создано \(30с\)/i });
       expect(cooldownBtn).toBeInTheDocument();
       expect(cooldownBtn).toBeDisabled();
+    });
+  });
+
+  it('normalizes URLs without scheme (e.g. ya.ru) to https:// automatically', async () => {
+    vi.mocked(linkApi.preview).mockResolvedValueOnce({
+      url: 'https://ya.ru',
+      is_reachable: true,
+      status_code: 200,
+      title: 'Яндекс',
+    });
+
+    vi.mocked(linkApi.create).mockResolvedValueOnce({
+      id: 'link-yaru',
+      original_url: 'https://ya.ru',
+      code: 'yaru-code',
+      short_url: 'http://localhost:4820/s/yaru-code',
+      title: 'Яндекс',
+      clicks: 0,
+      is_active: true,
+      is_nsfw: false,
+      created_at: '2026-09-25T12:00:00Z',
+      updated_at: '2026-09-25T12:00:00Z',
+    });
+
+    renderWithProviders(<CreateLinkForm />);
+
+    fireEvent.change(screen.getByLabelText(/адрес назначения/i), {
+      target: { value: 'ya.ru' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /создать короткую ссылку/i }));
+
+    await waitFor(() => {
+      expect(linkApi.preview).toHaveBeenCalledWith('https://ya.ru');
+      expect(linkApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          original_url: 'https://ya.ru',
+        })
+      );
+    });
+  });
+
+  it('automatically enables and locks NSFW switch when preview detects adult content', async () => {
+    vi.mocked(linkApi.preview).mockResolvedValueOnce({
+      url: 'https://example.com/nsfw-content',
+      is_reachable: true,
+      status_code: 200,
+      title: 'Adult Gallery 18+',
+      is_nsfw: true,
+    });
+
+    vi.mocked(linkApi.create).mockResolvedValueOnce({
+      id: 'link-nsfw',
+      original_url: 'https://example.com/nsfw-content',
+      code: 'nsfw-code',
+      short_url: 'http://localhost:4820/s/nsfw-code',
+      title: 'Adult Gallery 18+',
+      clicks: 0,
+      is_active: true,
+      is_nsfw: true,
+      created_at: '2026-09-25T12:00:00Z',
+      updated_at: '2026-09-25T12:00:00Z',
+    });
+
+    renderWithProviders(<CreateLinkForm />);
+
+    fireEvent.change(screen.getByLabelText(/адрес назначения/i), {
+      target: { value: 'https://example.com/nsfw-content' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /создать короткую ссылку/i }));
+
+    await waitFor(() => {
+      expect(linkApi.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          original_url: 'https://example.com/nsfw-content',
+          is_nsfw: true,
+        })
+      );
     });
   });
 });

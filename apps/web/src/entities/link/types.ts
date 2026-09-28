@@ -28,6 +28,7 @@ export interface LinkPreview {
   image_url?: string;
   favicon_url?: string;
   site_name?: string;
+  is_nsfw?: boolean;
   error?: string;
 }
 

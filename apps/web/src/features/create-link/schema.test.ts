@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getCreateLinkSchema, createLinkSchema } from './schema';
+import { getCreateLinkSchema, createLinkSchema, isKnownNSFWUrl } from './schema';
 
 describe('createLinkSchema', () => {
   it('validates a valid link creation payload', () => {
@@ -92,6 +92,25 @@ describe('createLinkSchema', () => {
       is_nsfw: false,
     });
     expect(longSlug.success).toBe(true);
+  });
+});
+
+describe('isKnownNSFWUrl', () => {
+  it('detects adult domains and URLs accurately', () => {
+    expect(isKnownNSFWUrl('pornhub.com')).toBe(true);
+    expect(isKnownNSFWUrl('https://www.pornhub.com/view_video.php')).toBe(true);
+    expect(isKnownNSFWUrl('https://rt.pornhub.com')).toBe(true);
+    expect(isKnownNSFWUrl('xvideos.com')).toBe(true);
+    expect(isKnownNSFWUrl('https://onlyfans.com/creator')).toBe(true);
+    expect(isKnownNSFWUrl('https://example.com/секс-шоп/товар')).toBe(true);
+    expect(isKnownNSFWUrl('https://example.com/xxx/gallery')).toBe(true);
+  });
+
+  it('does not flag benign URLs', () => {
+    expect(isKnownNSFWUrl('https://google.com')).toBe(false);
+    expect(isKnownNSFWUrl('https://github.com/OstKost')).toBe(false);
+    expect(isKnownNSFWUrl('https://sussex.ac.uk')).toBe(false);
+    expect(isKnownNSFWUrl('')).toBe(false);
   });
 });
 

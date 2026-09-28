@@ -62,32 +62,38 @@ func NewRouter(cfg RouterConfig) http.Handler {
 
 	// API v1 routes
 	r.Route("/api/v1", func(api chi.Router) {
-		if cfg.SessionService != nil {
-			api.Use(customMiddleware.SessionMiddleware(cfg.SessionService))
-		}
-
+		// Public auth endpoints (session creation and restoration)
 		if cfg.AuthHandler != nil {
-			api.Route("/auth", func(auth chi.Router) {
-				auth.Post("/session", cfg.AuthHandler.CreateSession)
-				auth.Post("/restore", cfg.AuthHandler.RestoreSession)
-				auth.Get("/me", cfg.AuthHandler.GetMe)
-			})
+			api.Post("/auth/session", cfg.AuthHandler.CreateSession)
+			api.Post("/auth/restore", cfg.AuthHandler.RestoreSession)
 		}
 
+		// Public URL preview endpoints
 		if cfg.LinkHandler != nil {
 			api.Post("/preview", cfg.LinkHandler.Preview)
+			api.Post("/links/preview", cfg.LinkHandler.Preview)
 		}
 
-		api.Route("/links", func(links chi.Router) {
-			links.Post("/", cfg.LinkHandler.Create)
-			links.Post("/preview", cfg.LinkHandler.Preview)
+		// Session-authenticated routes
+		api.Group(func(authed chi.Router) {
+			if cfg.SessionService != nil {
+				authed.Use(customMiddleware.SessionMiddleware(cfg.SessionService))
+			}
 
-			links.Get("/", cfg.LinkHandler.List)
-			links.Get("/{id}", cfg.LinkHandler.GetByID)
-			links.Patch("/{id}/status", cfg.LinkHandler.UpdateStatus)
-			links.Delete("/{id}", cfg.LinkHandler.Delete)
+			if cfg.AuthHandler != nil {
+				authed.Get("/auth/me", cfg.AuthHandler.GetMe)
+			}
+
+			if cfg.LinkHandler != nil {
+				authed.Route("/links", func(links chi.Router) {
+					links.Post("/", cfg.LinkHandler.Create)
+					links.Get("/", cfg.LinkHandler.List)
+					links.Get("/{id}", cfg.LinkHandler.GetByID)
+					links.Patch("/{id}/status", cfg.LinkHandler.UpdateStatus)
+					links.Delete("/{id}", cfg.LinkHandler.Delete)
+				})
+			}
 		})
-
 	})
 
 	// Static files & SPA Single Page App fallback

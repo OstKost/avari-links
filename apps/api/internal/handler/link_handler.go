@@ -8,6 +8,7 @@ import (
 
 	"github.com/OstKost/avari-links/apps/api/internal/domain"
 	"github.com/OstKost/avari-links/apps/api/internal/middleware"
+	"github.com/OstKost/avari-links/apps/api/internal/service"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-playground/validator/v10"
 )
@@ -51,6 +52,8 @@ func (h *LinkHandler) Create(w http.ResponseWriter, r *http.Request) {
 		respondError(w, http.StatusBadRequest, "Invalid JSON body")
 		return
 	}
+
+	req.OriginalURL = service.NormalizeTargetURL(req.OriginalURL)
 
 	if err := h.validate.Struct(req); err != nil {
 		var valErrs validator.ValidationErrors
@@ -282,6 +285,8 @@ func (h *LinkHandler) Preview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.URL = service.NormalizeTargetURL(req.URL)
+
 	if err := h.validate.Struct(req); err != nil {
 		var valErrs validator.ValidationErrors
 		if errors.As(err, &valErrs) {
@@ -312,6 +317,7 @@ func (h *LinkHandler) Preview(w http.ResponseWriter, r *http.Request) {
 		ImageURL:    preview.ImageURL,
 		FaviconURL:  preview.FaviconURL,
 		SiteName:    preview.SiteName,
+		IsNSFW:      preview.IsNSFW,
 		Error:       preview.Error,
 	})
 }

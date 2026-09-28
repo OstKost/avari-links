@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getCreateLinkSchema, type CreateLinkFormData } from './schema';
+import { getCreateLinkSchema, normalizeUrlInput, isKnownNSFWUrl, type CreateLinkFormData } from './schema';
 import { useCreateLink, usePreviewLink } from '@/entities/link/queries';
 import type { LinkPreview } from '@/entities/link/types';
 import { useSessionMe } from '@/entities/session/queries';
@@ -39,9 +39,11 @@ export function CreateLinkForm({
   const [previewStatus, setPreviewStatus] = useState<PreviewStatus>('idle');
   const [inspectedUrl, setInspectedUrl] = useState<string>('');
   const [cooldown, setCooldown] = useState<number>(0);
+  const [isNSFWForced, setIsNSFWForced] = useState<boolean>(false);
 
   const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const isHoldingSuccessRef = useRef(false);
 
   const {
     register,
@@ -63,6 +65,16 @@ export function CreateLinkForm({
 
   const watchedUrl = watch('original_url');
 
+  // React to URL input typing for known adult domains/keywords
+  useEffect(() => {
+    if (isKnownNSFWUrl(watchedUrl)) {
+      setValue('is_nsfw', true);
+      setIsNSFWForced(true);
+    } else if (previewStatus === 'idle' && !preview?.is_nsfw) {
+      setIsNSFWForced(false);
+    }
+  }, [watchedUrl, previewStatus, preview, setValue]);
+
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
@@ -71,17 +83,49 @@ export function CreateLinkForm({
     };
   }, []);
 
-  // Reset preview state if user edits the target URL and not in active cooldown
+  // Reset preview state if user edits the target URL and not in active success hold
   useEffect(() => {
-    if (cooldown === 0 && previewStatus !== 'idle' && watchedUrl !== inspectedUrl) {
+    const normWatched = normalizeUrlInput(watchedUrl);
+    const normInspected = normalizeUrlInput(inspectedUrl);
+
+    if (isHoldingSuccessRef.current) {
+      // While in success hold, only reset if user actively types a new non-empty URL
+      if (normWatched && normWatched !== normInspected) {
+        isHoldingSuccessRef.current = false;
+        if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        setPreview(null);
+        setPreviewStatus('idle');
+        setInspectedUrl('');
+        setCooldown(0);
+        onPreviewStateChange?.(null, false, watchedUrl);
+      }
+      return;
+    }
+
+    if (previewStatus !== 'idle' && normWatched && normInspected && normWatched !== normInspected) {
       setPreview(null);
       setPreviewStatus('idle');
+      setInspectedUrl('');
       onPreviewStateChange?.(null, false, watchedUrl);
     }
-  }, [watchedUrl, inspectedUrl, previewStatus, onPreviewStateChange, cooldown]);
+  }, [watchedUrl, inspectedUrl, previewStatus, onPreviewStateChange]);
+
+  const handleDismiss = () => {
+    isHoldingSuccessRef.current = false;
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    setPreview(null);
+    setPreviewStatus('idle');
+    setInspectedUrl('');
+    setCooldown(0);
+    setIsNSFWForced(false);
+    onPreviewStateChange?.(null, false, '');
+  };
 
   const startSuccessHold = () => {
-    setCooldown(5);
+    isHoldingSuccessRef.current = true;
+    setCooldown(30);
 
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     if (intervalRef.current) clearInterval(intervalRef.current);
@@ -97,22 +141,36 @@ export function CreateLinkForm({
     }, 1000);
 
     clearTimerRef.current = setTimeout(() => {
+      isHoldingSuccessRef.current = false;
       setPreview(null);
       setPreviewStatus('idle');
       setInspectedUrl('');
       onPreviewStateChange?.(null, false, '');
       setCooldown(0);
-    }, 5000);
+      setIsNSFWForced(false);
+    }, 30000);
   };
 
   const executeCheck = async (urlToCheck: string, currentData: CreateLinkFormData) => {
+    const normalizedUrl = normalizeUrlInput(urlToCheck);
     setPreviewStatus('inspecting');
-    onPreviewStateChange?.(null, true, urlToCheck);
+    setInspectedUrl(normalizedUrl);
+    onPreviewStateChange?.(null, true, normalizedUrl);
 
     try {
-      const res = await previewLink.mutateAsync(urlToCheck);
+      const res = await previewLink.mutateAsync(normalizedUrl);
       setPreview(res);
-      setInspectedUrl(urlToCheck);
+      setInspectedUrl(normalizedUrl);
+
+      const isKnown = isKnownNSFWUrl(normalizedUrl) || isKnownNSFWUrl(urlToCheck);
+      let effectiveNSFW = currentData.is_nsfw || isKnown;
+      if (res.is_nsfw || isKnown) {
+        effectiveNSFW = true;
+        setValue('is_nsfw', true);
+        setIsNSFWForced(true);
+      } else {
+        setIsNSFWForced(false);
+      }
 
       if (res.is_reachable) {
         setPreviewStatus('success');
@@ -130,22 +188,29 @@ export function CreateLinkForm({
           original_url: currentData.original_url,
           title: effectiveTitle || undefined,
           custom_code: currentData.custom_code || undefined,
-          is_nsfw: currentData.is_nsfw,
+          is_nsfw: effectiveNSFW,
         });
 
-        reset();
-        onSuccess?.();
         startSuccessHold();
+        reset();
+        setIsNSFWForced(false);
+        onSuccess?.();
       } else {
         setPreviewStatus('failed');
         onPreviewStateChange?.(res, false, urlToCheck);
       }
     } catch (err: unknown) {
+      const isKnown = isKnownNSFWUrl(urlToCheck) || isKnownNSFWUrl(normalizedUrl);
+      if (isKnown) {
+        setValue('is_nsfw', true);
+        setIsNSFWForced(true);
+      }
       const errorMsg = err instanceof Error ? err.message : 'Ошибка сети при проверке сайта';
       const fallbackPreview: LinkPreview = {
         url: urlToCheck,
         is_reachable: false,
         status_code: 0,
+        is_nsfw: isKnown,
         error: errorMsg,
       };
       setPreview(fallbackPreview);
@@ -157,19 +222,22 @@ export function CreateLinkForm({
 
   const onSubmit = async (data: CreateLinkFormData) => {
     const trimmedUrl = data.original_url.trim();
+    const normalizedUrl = normalizeUrlInput(trimmedUrl);
+    const effectiveNSFW = isNSFWForced || data.is_nsfw || isKnownNSFWUrl(normalizedUrl);
 
     // If already failed and user clicks submit again -> Force create
-    if (previewStatus === 'failed' && inspectedUrl === trimmedUrl) {
+    if (previewStatus === 'failed' && (inspectedUrl === trimmedUrl || inspectedUrl === normalizedUrl)) {
       try {
         await createLink.mutateAsync({
-          original_url: data.original_url,
+          original_url: normalizedUrl,
           title: data.title || undefined,
           custom_code: data.custom_code || undefined,
-          is_nsfw: data.is_nsfw,
+          is_nsfw: effectiveNSFW,
         });
-        reset();
-        onSuccess?.();
         startSuccessHold();
+        reset();
+        setIsNSFWForced(false);
+        onSuccess?.();
       } catch {
         // Handled by TanStack Query onError toast
       }
@@ -177,7 +245,7 @@ export function CreateLinkForm({
     }
 
     // Step 1: Run preview check
-    await executeCheck(trimmedUrl, data);
+    await executeCheck(normalizedUrl, data);
   };
 
   const handleRetryCheck = () => {
@@ -246,7 +314,8 @@ export function CreateLinkForm({
             {t.createForm.nsfwBadge}
           </span>
         }
-        description={t.createForm.nsfwDescription}
+        description={isNSFWForced ? t.createForm.nsfwDetected : t.createForm.nsfwDescription}
+        disabled={isNSFWForced}
         {...register('is_nsfw')}
       />
 
@@ -257,6 +326,7 @@ export function CreateLinkForm({
             isLoading={isChecking}
             preview={preview}
             targetUrl={watchedUrl}
+            onClose={handleDismiss}
           />
         </div>
       )}

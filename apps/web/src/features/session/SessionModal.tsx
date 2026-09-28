@@ -80,27 +80,30 @@ export function SessionModal() {
       onClose={() => setSessionModalOpen(false)}
       title={t.sessionModal.title}
       description={t.sessionModal.description}
-      className="max-w-xl"
+      className="max-w-2xl sm:max-w-2xl"
     >
       <div className="space-y-6">
         {/* Current Key Card */}
-        <div className="p-4 rounded-xl border border-[var(--av-gold)]/40 bg-[var(--av-surface)] space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <UserAvatar name={sessionKey} size={32} />
-              <span className="text-xs font-medium uppercase tracking-wider text-[var(--av-gold)] flex items-center gap-1.5">
+        <div className="relative overflow-hidden rounded-2xl border border-[var(--av-gold)]/40 bg-gradient-to-b from-[var(--av-surface-raised)]/95 via-[var(--av-surface)]/95 to-[var(--av-bg)]/95 p-5 shadow-lg space-y-4">
+          <div className="absolute top-0 right-0 -mt-6 -mr-6 w-36 h-36 bg-[var(--av-gold)]/10 rounded-full blur-2xl pointer-events-none" />
+          <div className="absolute bottom-0 left-0 -mb-6 -ml-6 w-32 h-32 bg-[var(--av-cyan)]/5 rounded-full blur-2xl pointer-events-none" />
+
+          <div className="relative flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <UserAvatar name={sessionKey} size={36} className="ring-2 ring-[var(--av-gold)]/30 rounded-xl" />
+              <span className="text-xs font-semibold uppercase tracking-wider text-[var(--av-gold)] flex items-center gap-1.5">
                 <KeyRound className="w-3.5 h-3.5" />
                 {t.sessionModal.personalKey}
               </span>
             </div>
             <div className="flex items-center gap-2">
               {meData?.is_premium && (
-                <Badge variant="gold" className="text-[10px] py-0.5">
+                <Badge variant="gold" className="text-[10px] py-0.5 px-2 font-semibold">
                   ★ PREMIUM
                 </Badge>
               )}
               {meData && (
-                <Badge variant="indigo">
+                <Badge variant="indigo" className="text-[11px] py-0.5 px-2">
                   {t.sessionModal.linksCount(meData.links_count)}
                 </Badge>
               )}
@@ -108,27 +111,38 @@ export function SessionModal() {
           </div>
 
           {sessionKey ? (
-            <div className="space-y-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 p-3 bg-[var(--av-bg)] border border-[var(--av-border-control)] rounded-lg">
-                <div className="flex flex-wrap gap-1.5 font-mono text-sm font-semibold tracking-wide select-all items-center">
+            <div className="space-y-3 relative">
+              {/* Key Display & Actions Row */}
+              <div className="p-3 sm:p-3.5 rounded-xl bg-[var(--av-bg)]/90 border border-[var(--av-border-control)] hover:border-[var(--av-gold)]/40 transition-colors shadow-inner flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0 flex flex-wrap items-center gap-1 font-mono text-xs sm:text-sm font-semibold tracking-wide select-all py-0.5">
                   {keySegments.map((segment, idx) => (
-                    <span
-                      key={idx}
-                      className={idx === keySegments.length - 1 ? 'text-[var(--av-cyan)]' : 'text-[var(--av-text)]'}
-                    >
-                      {segment}{idx < keySegments.length - 1 ? '-' : ''}
-                    </span>
+                    <React.Fragment key={idx}>
+                      <span
+                        className={
+                          idx === keySegments.length - 1
+                            ? 'text-[var(--av-cyan)] font-bold px-1.5 py-0.5 rounded bg-[var(--av-cyan)]/10 border border-[var(--av-cyan)]/25 text-xs'
+                            : 'text-[var(--av-text)]'
+                        }
+                      >
+                        {segment}
+                      </span>
+                      {idx < keySegments.length - 1 && (
+                        <span className="text-[var(--av-gold)]/50 font-normal select-none">-</span>
+                      )}
+                    </React.Fragment>
                   ))}
                 </div>
-                <div className="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+
+                <div className="flex items-center gap-1.5 shrink-0">
                   <Button
                     size="sm"
-                    variant="secondary"
+                    variant={copied ? 'primary' : 'secondary'}
                     onClick={handleCopyKey}
-                    leftIcon={copied ? <Check className="w-3.5 h-3.5 text-[var(--av-success)]" /> : <Copy className="w-3.5 h-3.5" />}
-                    className="shrink-0"
+                    aria-label={t.sessionModal.copy}
+                    title={copied ? t.sessionModal.copied : t.sessionModal.copy}
+                    className="shrink-0 transition-all min-h-0 h-9 w-9 p-0 rounded-full"
                   >
-                    {copied ? t.sessionModal.copied : t.sessionModal.copy}
+                    {copied ? <Check className="w-4 h-4 text-[var(--av-success)]" /> : <Copy className="w-4 h-4" />}
                   </Button>
                   <Button
                     size="sm"
@@ -136,12 +150,12 @@ export function SessionModal() {
                     onClick={handleRerollClick}
                     disabled={remainingRerolls <= 0 || createMutation.isPending}
                     isLoading={createMutation.isPending}
-                    leftIcon={<Dices className="w-3.5 h-3.5 text-[var(--av-cyan)]" />}
-                    className="shrink-0"
+                    aria-label={t.sessionModal.rerollName}
                     title={remainingRerolls <= 0 ? t.sessionModal.rerollLimitReached : `${t.sessionModal.rerollName} (${remainingRerolls}/${MAX_SESSION_REROLLS})`}
+                    className="shrink-0 font-medium min-h-0 h-9 px-3 rounded-full gap-1.5"
                   >
-                    <span>{t.sessionModal.rerollName}</span>
-                    <span className="ml-1 text-[10px] font-mono opacity-80 px-1 py-0.5 rounded bg-[var(--av-surface-raised)] border border-[var(--av-border-subtle)]">
+                    <Dices className="w-4 h-4 text-[var(--av-cyan)]" />
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-[var(--av-surface-raised)] border border-[var(--av-border-subtle)] text-[var(--av-cyan)]">
                       {remainingRerolls}/{MAX_SESSION_REROLLS}
                     </span>
                   </Button>
@@ -191,7 +205,7 @@ export function SessionModal() {
                 </div>
               )}
 
-              <p className="text-xs avari-muted">
+              <p className="text-xs avari-muted leading-relaxed">
                 {t.sessionModal.keyNotice}
               </p>
             </div>

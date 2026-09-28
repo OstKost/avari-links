@@ -47,7 +47,7 @@ func NewLinkService(repo domain.LinkRepository, baseURL string, codeLength int, 
 
 func (s *linkService) Create(ctx context.Context, dto domain.CreateLinkDTO) (*domain.Link, error) {
 	// 1. Validate & normalize URL
-	targetURL := strings.TrimSpace(dto.OriginalURL)
+	targetURL := NormalizeTargetURL(dto.OriginalURL)
 	if targetURL == "" {
 		return nil, domain.ErrInvalidURL
 	}
@@ -59,7 +59,7 @@ func (s *linkService) Create(ctx context.Context, dto domain.CreateLinkDTO) (*do
 	if s.isBlocked(parsedURL.Hostname()) {
 		return nil, domain.ErrBlockedDestination
 	}
-	if looksNSFW(parsedURL) && !dto.IsNSFW {
+	if LooksNSFW(parsedURL, dto.Title) && !dto.IsNSFW {
 		return nil, domain.ErrNSFWLabelRequired
 	}
 
@@ -232,27 +232,10 @@ func (s *linkService) isBlocked(host string) bool {
 	return false
 }
 
-func looksNSFW(u *url.URL) bool {
-	markers := map[string]bool{"nsfw": true, "xxx": true, "porn": true, "adult": true, "hentai": true}
-	for _, label := range strings.Split(strings.ToLower(u.Hostname()), ".") {
-		if markers[label] {
-			return true
-		}
-	}
-	for _, segment := range strings.FieldsFunc(strings.ToLower(u.Path), func(r rune) bool {
-		return r == '/' || r == '-' || r == '_' || r == '.'
-	}) {
-		if markers[segment] {
-			return true
-		}
-	}
-	return false
-}
-
 func (s *linkService) applyLegacyNSFWLabel(link *domain.Link) {
 	if link != nil && !link.IsNSFW {
 		parsed, err := url.Parse(link.OriginalURL)
-		if err == nil && looksNSFW(parsed) {
+		if err == nil && LooksNSFW(parsed, link.Title) {
 			link.IsNSFW = true
 		}
 	}

@@ -108,4 +108,60 @@ func TestRouter_AuthAndLinksEndpoints(t *testing.T) {
 
 		assert.Equal(t, http.StatusCreated, w.Code)
 	})
+
+	t.Run("POST /api/v1/auth/session succeeds even with invalid X-Session-Key header", func(t *testing.T) {
+		session := &domain.SessionWithKey{
+			Session: domain.Session{
+				ID:           "sess-new",
+				KeyHash:      "hash-new",
+				LastActiveAt: time.Now(),
+				CreatedAt:    time.Now(),
+				UpdatedAt:    time.Now(),
+			},
+			AccessKey: "new-valid-key-1111",
+		}
+		mockSessionSvc.On("CreateSession", mock.Anything).Return(session, nil).Once()
+
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/session", nil)
+		req.Header.Set("X-Session-Key", "invalid-or-expired-key")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusCreated, w.Code)
+		var resp handler.SessionResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "sess-new", resp.ID)
+		assert.Equal(t, "new-valid-key-1111", resp.AccessKey)
+	})
+
+	t.Run("POST /api/v1/auth/restore succeeds even with invalid X-Session-Key header", func(t *testing.T) {
+		session := &domain.SessionWithKey{
+			Session: domain.Session{
+				ID:           "sess-restored",
+				KeyHash:      "hash-restored",
+				LastActiveAt: time.Now(),
+				CreatedAt:    time.Now(),
+				UpdatedAt:    time.Now(),
+			},
+			AccessKey: "target-restore-key-2222",
+		}
+		mockSessionSvc.On("RestoreSession", mock.Anything, "target-restore-key-2222").Return(session, nil).Once()
+
+		body, _ := json.Marshal(handler.RestoreSessionRequest{
+			AccessKey: "target-restore-key-2222",
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/restore", bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Session-Key", "invalid-or-expired-key")
+		w := httptest.NewRecorder()
+		r.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusOK, w.Code)
+		var resp handler.SessionResponse
+		err := json.NewDecoder(w.Body).Decode(&resp)
+		require.NoError(t, err)
+		assert.Equal(t, "sess-restored", resp.ID)
+		assert.Equal(t, "target-restore-key-2222", resp.AccessKey)
+	})
 }
