@@ -50,6 +50,8 @@ sudo mv "${SCRIPT_DIR}/avari-links" /usr/local/bin/avari-links
 echo "===> Installing frontend assets to /var/www/avari-links/frontend..."
 sudo rm -rf /var/www/avari-links/frontend/*
 sudo cp -r "${SCRIPT_DIR}/web/"* /var/www/avari-links/frontend/
+sudo chmod -R 755 /var/www/avari-links/frontend
+sudo chown -R caddy:caddy /var/www/avari-links/frontend 2>/dev/null || sudo chown -R www-data:www-data /var/www/avari-links/frontend 2>/dev/null || true
 
 echo "===> Searching for all OpenResty site configs and roots..."
 # Find all configs for links.avari.dev
@@ -123,22 +125,17 @@ if [ -f /etc/caddy/Caddyfile ]; then
     fi
 fi
 
-echo "===> Reloading and restarting web servers (Caddy, OpenResty, Nginx)..."
-sudo systemctl reload caddy 2>/dev/null || sudo systemctl restart caddy 2>/dev/null || true
-sudo caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
-sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
-sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
-
-echo "===> Testing direct public IP port 443 response after Caddy reload:"
-curl -s -k -H "Host: links.avari.dev" https://176.53.174.118/ | grep -E "assets/index" || true
+echo "===> Restarting and reloading Caddy web server..."
+sudo systemctl restart caddy 2>/dev/null || sudo systemctl reload caddy 2>/dev/null || sudo caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
 
 echo "===> Verifying service health..."
 sleep 2
 sudo systemctl is-active avari-links.service
 curl -s -f http://127.0.0.1:4820/healthz
 echo ''
-echo "===> Testing localhost OpenResty proxy output:"
-curl -s -k -H "Host: links.avari.dev" https://127.0.0.1/ 2>/dev/null | grep -E "assets/index" || curl -s -H "Host: links.avari.dev" http://127.0.0.1/ 2>/dev/null | grep -E "assets/index" || true
+
+echo "===> Testing HTTPS serving via Caddy with proper SNI resolution:"
+curl -s --resolve "links.avari.dev:443:127.0.0.1" https://links.avari.dev/ | grep -E "assets/index" || true
 echo 'Remote deployment to 176.53.174.118 successful!'
 REMOTE_INSTALL_EOF
 
