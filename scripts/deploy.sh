@@ -102,21 +102,33 @@ keepalive 64;
 }' | sudo tee /opt/om/nginx/conf/upstreams/6.conf > /dev/null
 fi
 
-echo "===> Purging all OpenResty / Nginx / CDN caches..."
-sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /opt/om/cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* /opt/om/nginx/temp/* 2>/dev/null || true
+echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
+curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 
-echo "===> Reloading and restarting OpenResty..."
-sudo systemctl restart openresty 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || \
-sudo systemctl reload openresty 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || \
-sudo /usr/local/openresty/bin/openresty -s reload 2>/dev/null || \
-sudo /opt/om/nginx/sbin/nginx -s reload 2>/dev/null || \
-sudo /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
+echo "===> Inspecting OpenResty / Nginx setup on host..."
+sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
+
+echo "===> Finding OpenResty / Nginx configuration files:"
+sudo find /opt /etc/nginx /usr/local/openresty -name "*.conf" 2>/dev/null || true
+
+echo "===> Purging all proxy and CDN cache directories..."
+sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /opt/om/cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* /opt/om/nginx/temp/* /dev/shm/*om* /dev/shm/*nginx* 2>/dev/null || true
+
+echo "===> Reloading and restarting all web server processes..."
+# Kill/restart Nginx/OpenResty master processes cleanly so shared memory caches are completely cleared
+sudo pkill -HUP -f "nginx: master" 2>/dev/null || true
+sudo pkill -HUP -f "openresty: master" 2>/dev/null || true
+sudo systemctl restart openresty 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || true
+sudo /usr/local/openresty/bin/openresty -s reload 2>/dev/null || true
+sudo /opt/om/nginx/sbin/nginx -s reload 2>/dev/null || true
 
 echo "===> Verifying service health..."
 sleep 2
 sudo systemctl is-active avari-links.service
 curl -s -f http://127.0.0.1:4820/healthz
 echo ''
+echo "===> Testing localhost OpenResty proxy output:"
+curl -s -k -H "Host: links.avari.dev" https://127.0.0.1/ 2>/dev/null | grep -E "assets/index" || curl -s -H "Host: links.avari.dev" http://127.0.0.1/ 2>/dev/null | grep -E "assets/index" || true
 echo 'Remote deployment to 176.53.174.118 successful!'
 REMOTE_INSTALL_EOF
 
