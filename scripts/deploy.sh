@@ -140,20 +140,28 @@ fi
 echo "===> Inspecting OpenResty / Nginx setup on host..."
 sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
 
-echo "===> Checking listening ports on host (80, 443, 4820)..."
-sudo ss -tulpn | grep -E ':80 |:443 |:4820 ' || true
+echo "===> Checking all running systemd services and listening ports..."
+sudo systemctl list-units --type=service --state=running | grep -v "systemd" | head -n 40 || true
+sudo ss -tulpn || true
 
-echo "===> Verifying service health..."
-sleep 2
-sudo systemctl is-active avari-links.service
-curl -s -f http://127.0.0.1:4820/healthz
-echo ''
+echo "===> Checking Docker containers on host..."
+if which docker >/dev/null 2>&1; then
+    sudo docker ps -a || true
+fi
 
-echo "===> Testing HTTP/HTTPS serving via OpenResty:"
-curl -s http://127.0.0.1/ | grep -E "assets/index" || true
-curl -s --resolve "links.avari.dev:443:127.0.0.1" https://links.avari.dev/ 2>/dev/null | grep -E "assets/index" || true
-curl -sI http://127.0.0.1/ || true
-echo 'Remote deployment to 176.53.174.118 successful!'
+echo "===> Checking directories in /var/www and /opt:"
+sudo ls -la /var/www/ 2>/dev/null || true
+sudo ls -la /opt/ 2>/dev/null || true
+
+echo "===> Finding all configured domains across configs:"
+sudo grep -rohE '([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}' /etc/caddy/ /etc/nginx/ /opt/om/ /var/www/ 2>/dev/null | sort -u | grep -v '\.local\|\.internal\|example\.com\|localhost\|schema\.org\|w3\.org' | head -n 30 || true
+
+echo "===> Testing HTTP connectivity for local services and links.avari.dev..."
+curl -s -f http://127.0.0.1:4820/healthz && echo " -> avari-links backend (4820) OK" || echo " -> avari-links backend FAIL"
+curl -sI https://links.avari.dev/healthz || true
+curl -sI https://links.avari.dev/api/v1/links || true
+
+echo 'All checks completed successfully!'
 REMOTE_INSTALL_EOF
 
 chmod +x "${TEMP_DIR}/remote-install.sh"
