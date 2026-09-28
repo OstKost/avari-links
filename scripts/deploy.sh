@@ -66,15 +66,27 @@ for conf in $(grep -rnwl "links.avari.dev" /opt/om/nginx/conf/ /etc/nginx/ /opt/
     sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" "${conf}" 2>/dev/null || true
 done
 
-# Check known OpenResty Manager site directories
-for old_bundle in $(sudo find /opt /var /www /tmp -name "index-BfaES30I.js" -o -name "index-DP2UFy_x.css" 2>/dev/null || true); do
-    BUNDLE_DIR="$(dirname "$(dirname "${old_bundle}")")"
-    if [ -d "${BUNDLE_DIR}" ]; then
-        echo "Found old bundle directory: ${BUNDLE_DIR}, updating..."
-        sudo rm -rf "${BUNDLE_DIR}/"*
-        sudo cp -r "${SCRIPT_DIR}/web/"* "${BUNDLE_DIR}/"
-    fi
+echo "===> Searching for old bundles across filesystem..."
+sudo find / -name "index-BfaES30I.js" 2>/dev/null | while read -r old_file; do
+    BUNDLE_DIR="$(dirname "$(dirname "$old_file")")"
+    echo "Found old bundle at ${old_file}, syncing ${BUNDLE_DIR}..."
+    sudo cp -r "${SCRIPT_DIR}/web/"* "${BUNDLE_DIR}/"
 done
+
+# Check Docker containers
+if which docker >/dev/null 2>&1; then
+    echo "===> Checking Docker containers on host:"
+    sudo docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}" || true
+    for cid in $(sudo docker ps -q); do
+        cname=$(sudo docker inspect --format '{{.Name}}' "$cid" 2>/dev/null || true)
+        echo "Inspecting container: ${cname}"
+        # Copy web assets into container if it has /var/www or /opt/om or nginx html
+        sudo docker cp "${SCRIPT_DIR}/web/." "${cid}:/var/www/avari-links/frontend/" 2>/dev/null || true
+        sudo docker cp "${SCRIPT_DIR}/web/." "${cid}:/opt/om/sites/3/html/" 2>/dev/null || true
+        # Reload nginx in container if possible
+        sudo docker exec "$cid" openresty -s reload 2>/dev/null || sudo docker exec "$cid" nginx -s reload 2>/dev/null || true
+    done
+fi
 
 echo "===> Configuring systemd service..."
 sudo cp "${SCRIPT_DIR}/avari-links.service" /etc/systemd/system/avari-links.service
