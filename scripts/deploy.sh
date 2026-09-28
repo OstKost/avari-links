@@ -51,14 +51,30 @@ echo "===> Installing frontend assets to /var/www/avari-links/frontend..."
 sudo rm -rf /var/www/avari-links/frontend/*
 sudo cp -r "${SCRIPT_DIR}/web/"* /var/www/avari-links/frontend/
 
-# If OpenResty Manager site has a separate root directory, copy assets there too
-if [ -f /opt/om/nginx/conf/sites/3.conf ]; then
-    SITE_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' /opt/om/nginx/conf/sites/3.conf 2>/dev/null || true)
-    if [ -n "${SITE_ROOT}" ] && [ "${SITE_ROOT}" != "/var/www/avari-links/frontend" ] && [ -d "${SITE_ROOT}" ]; then
-        echo "===> Copying assets to OpenResty site root: ${SITE_ROOT}"
+echo "===> Searching for all OpenResty site configs and roots..."
+# Find all configs for links.avari.dev
+for conf in $(grep -rnwl "links.avari.dev" /opt/om/nginx/conf/ /etc/nginx/ /opt/om/ 2>/dev/null || true); do
+    echo "Found site config: ${conf}"
+    # Read root directory if present
+    SITE_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' "${conf}" 2>/dev/null | tr -d ' ' || true)
+    if [ -n "${SITE_ROOT}" ] && [ -d "${SITE_ROOT}" ]; then
+        echo "Updating OpenResty site root: ${SITE_ROOT}"
+        sudo rm -rf "${SITE_ROOT}/"*
         sudo cp -r "${SCRIPT_DIR}/web/"* "${SITE_ROOT}/"
     fi
-fi
+    # Point upstream to 6 (port 4820)
+    sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" "${conf}" 2>/dev/null || true
+done
+
+# Check known OpenResty Manager site directories
+for old_bundle in $(sudo find /opt /var /www /tmp -name "index-BfaES30I.js" -o -name "index-DP2UFy_x.css" 2>/dev/null || true); do
+    BUNDLE_DIR="$(dirname "$(dirname "${old_bundle}")")"
+    if [ -d "${BUNDLE_DIR}" ]; then
+        echo "Found old bundle directory: ${BUNDLE_DIR}, updating..."
+        sudo rm -rf "${BUNDLE_DIR}/"*
+        sudo cp -r "${SCRIPT_DIR}/web/"* "${BUNDLE_DIR}/"
+    fi
+done
 
 echo "===> Configuring systemd service..."
 sudo cp "${SCRIPT_DIR}/avari-links.service" /etc/systemd/system/avari-links.service
@@ -72,18 +88,14 @@ if [ -d /opt/om/nginx/conf/upstreams ]; then
 server 127.0.0.1:4820;
 keepalive 64;
 }' | sudo tee /opt/om/nginx/conf/upstreams/6.conf > /dev/null
-
-    if [ -f /opt/om/nginx/conf/sites/3.conf ]; then
-        sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" /opt/om/nginx/conf/sites/3.conf
-    fi
 fi
 
-echo "===> Purging OpenResty / Nginx CDN caches..."
-sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* 2>/dev/null || true
+echo "===> Purging all OpenResty / Nginx / CDN caches..."
+sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /opt/om/cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* /opt/om/nginx/temp/* 2>/dev/null || true
 
-echo "===> Reloading OpenResty / Nginx..."
-sudo systemctl reload openresty 2>/dev/null || sudo systemctl restart openresty 2>/dev/null || \
-sudo systemctl reload nginx 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || \
+echo "===> Reloading and restarting OpenResty..."
+sudo systemctl restart openresty 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || \
+sudo systemctl reload openresty 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || \
 sudo /usr/local/openresty/bin/openresty -s reload 2>/dev/null || \
 sudo /opt/om/nginx/sbin/nginx -s reload 2>/dev/null || \
 sudo /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
