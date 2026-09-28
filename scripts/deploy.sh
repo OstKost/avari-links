@@ -108,19 +108,21 @@ curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 echo "===> Inspecting OpenResty / Nginx setup on host..."
 sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
 
-echo "===> Finding OpenResty / Nginx configuration files:"
-sudo find /opt /etc/nginx /usr/local/openresty -name "*.conf" 2>/dev/null || true
+echo "===> Checking listening ports on host (80, 443, 4820)..."
+sudo ss -tulpn | grep -E ':80 |:443 |:4820 ' || true
 
-echo "===> Purging all proxy and CDN cache directories..."
-sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /opt/om/cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* /opt/om/nginx/temp/* /dev/shm/*om* /dev/shm/*nginx* 2>/dev/null || true
+echo "===> Inspecting OpenResty / Nginx site configs..."
+for f in $(sudo find /opt/om /etc/nginx /usr/local/openresty -name "*.conf" 2>/dev/null | grep -E 'sites|conf\.d|vhost'); do
+    echo "--- File: $f ---"
+    sudo cat "$f" || true
+done
 
-echo "===> Reloading and restarting all web server processes..."
-# Kill/restart Nginx/OpenResty master processes cleanly so shared memory caches are completely cleared
-sudo pkill -HUP -f "nginx: master" 2>/dev/null || true
-sudo pkill -HUP -f "openresty: master" 2>/dev/null || true
-sudo systemctl restart openresty 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || true
-sudo /usr/local/openresty/bin/openresty -s reload 2>/dev/null || true
-sudo /opt/om/nginx/sbin/nginx -s reload 2>/dev/null || true
+echo "===> Testing localhost OpenResty proxy on HTTP (port 80) and HTTPS (port 443):"
+curl -s -H "Host: links.avari.dev" http://127.0.0.1/ | grep -E "assets/index" || true
+curl -s -k -H "Host: links.avari.dev" https://127.0.0.1/ | grep -E "assets/index" || true
+
+echo "===> Testing direct public IP port 443 response:"
+curl -s -k -H "Host: links.avari.dev" https://176.53.174.118/ | grep -E "assets/index" || true
 
 echo "===> Verifying service health..."
 sleep 2
