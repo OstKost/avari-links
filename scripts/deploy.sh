@@ -34,33 +34,39 @@ cp -r apps/web/dist/* "${TEMP_DIR}/web/"
 cp bin/avari-api-linux-amd64 "${TEMP_DIR}/avari-links"
 cp deployments/systemd/avari-links.service "${TEMP_DIR}/avari-links.service"
 
-echo "===> Streaming deployment bundle to server and applying configuration..."
-tar -czf - -C "${TEMP_DIR}" avari-links avari-links.service web | ssh ${SSH_OPTS} "${SERVER_USER}@${SERVER_HOST}" "
+cat << 'REMOTE_INSTALL_EOF' > "${TEMP_DIR}/remote-install.sh"
+#!/usr/bin/env bash
 set -euo pipefail
-REMOTE_TMP=\$(mktemp -d)
-trap 'rm -rf \"\${REMOTE_TMP}\"' EXIT
 
-# Extract payload
-tar -xzf - -C \"\${REMOTE_TMP}\"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# 1. Prepare directories with sudo
+echo "===> Preparing directories on remote host..."
 sudo mkdir -p /opt/avari-links/data /var/www/avari-links/frontend /etc/systemd/system
 
-# 2. Deploy binary
-chmod +x \"\${REMOTE_TMP}/avari-links\"
-sudo mv \"\${REMOTE_TMP}/avari-links\" /usr/local/bin/avari-links
+echo "===> Installing API binary..."
+chmod +x "${SCRIPT_DIR}/avari-links"
+sudo mv "${SCRIPT_DIR}/avari-links" /usr/local/bin/avari-links
 
-# 3. Deploy frontend static
+echo "===> Installing frontend assets to /var/www/avari-links/frontend..."
 sudo rm -rf /var/www/avari-links/frontend/*
-sudo cp -r \"\${REMOTE_TMP}/web/\"* /var/www/avari-links/frontend/
+sudo cp -r "${SCRIPT_DIR}/web/"* /var/www/avari-links/frontend/
 
-# 4. Configure systemd service
-sudo cp \"\${REMOTE_TMP}/avari-links.service\" /etc/systemd/system/avari-links.service
+# If OpenResty Manager site has a separate root directory, copy assets there too
+if [ -f /opt/om/nginx/conf/sites/3.conf ]; then
+    SITE_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' /opt/om/nginx/conf/sites/3.conf 2>/dev/null || true)
+    if [ -n "${SITE_ROOT}" ] && [ "${SITE_ROOT}" != "/var/www/avari-links/frontend" ] && [ -d "${SITE_ROOT}" ]; then
+        echo "===> Copying assets to OpenResty site root: ${SITE_ROOT}"
+        sudo cp -r "${SCRIPT_DIR}/web/"* "${SITE_ROOT}/"
+    fi
+fi
+
+echo "===> Configuring systemd service..."
+sudo cp "${SCRIPT_DIR}/avari-links.service" /etc/systemd/system/avari-links.service
 sudo systemctl daemon-reload
 sudo systemctl enable avari-links.service
 sudo systemctl restart avari-links.service
 
-# 5. Ensure OpenResty Manager upstream & site config
+echo "===> Configuring OpenResty Manager upstream..."
 if [ -d /opt/om/nginx/conf/upstreams ]; then
     echo 'upstream 6 {
 server 127.0.0.1:4820;
@@ -68,20 +74,37 @@ keepalive 64;
 }' | sudo tee /opt/om/nginx/conf/upstreams/6.conf > /dev/null
 
     if [ -f /opt/om/nginx/conf/sites/3.conf ]; then
-        sudo sed -i 's|proxy_pass '\''http://[0-9]*/'\'';|proxy_pass '\''http://6/'\'';|g' /opt/om/nginx/conf/sites/3.conf
-    fi
-
-    if which openresty >/dev/null 2>&1; then
-        sudo openresty -t -p /opt/om/nginx -c /opt/om/nginx/conf/nginx.conf && sudo openresty -p /opt/om/nginx -s reload || true
+        sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" /opt/om/nginx/conf/sites/3.conf
     fi
 fi
 
-# 6. Verify service
+echo "===> Purging OpenResty / Nginx CDN caches..."
+sudo rm -rf /opt/om/nginx/cache/* /opt/om/nginx/proxy_cache/* /var/cache/nginx/* /tmp/om_cache/* /tmp/nginx_cache/* 2>/dev/null || true
+
+echo "===> Reloading OpenResty / Nginx..."
+sudo systemctl reload openresty 2>/dev/null || sudo systemctl restart openresty 2>/dev/null || \
+sudo systemctl reload nginx 2>/dev/null || sudo systemctl restart nginx 2>/dev/null || \
+sudo /usr/local/openresty/bin/openresty -s reload 2>/dev/null || \
+sudo /opt/om/nginx/sbin/nginx -s reload 2>/dev/null || \
+sudo /usr/local/openresty/nginx/sbin/nginx -s reload 2>/dev/null || true
+
+echo "===> Verifying service health..."
 sleep 2
 sudo systemctl is-active avari-links.service
 curl -s -f http://127.0.0.1:4820/healthz
 echo ''
 echo 'Remote deployment to 176.53.174.118 successful!'
+REMOTE_INSTALL_EOF
+
+chmod +x "${TEMP_DIR}/remote-install.sh"
+
+echo "===> Streaming deployment bundle to server and applying configuration..."
+tar -czf - -C "${TEMP_DIR}" . | ssh ${SSH_OPTS} "${SERVER_USER}@${SERVER_HOST}" "
+set -euo pipefail
+REMOTE_TMP=\$(mktemp -d)
+trap 'rm -rf \"\${REMOTE_TMP}\"' EXIT
+tar -xzf - -C \"\${REMOTE_TMP}\"
+bash \"\${REMOTE_TMP}/remote-install.sh\"
 "
 
 echo "===> Deployment completed successfully!"
