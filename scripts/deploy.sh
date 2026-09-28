@@ -107,44 +107,27 @@ fi
 echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
 curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 
+echo "===> Stopping and disabling Caddy (preserving configs, switching to OpenResty)..."
+sudo systemctl stop caddy 2>/dev/null || true
+sudo systemctl disable caddy 2>/dev/null || true
+
+echo "===> Starting / Reloading OpenResty web server..."
+if which openresty >/dev/null 2>&1; then
+    sudo openresty -t 2>/dev/null || true
+    sudo systemctl restart openresty 2>/dev/null || sudo systemctl start openresty 2>/dev/null || sudo openresty -s reload 2>/dev/null || sudo openresty 2>/dev/null || true
+elif [ -f /opt/om/nginx/sbin/nginx ]; then
+    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
+    sudo systemctl restart openresty 2>/dev/null || sudo systemctl start openresty 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ 2>/dev/null || true
+elif which nginx >/dev/null 2>&1; then
+    sudo nginx -t 2>/dev/null || true
+    sudo systemctl restart nginx 2>/dev/null || sudo systemctl start nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null || sudo nginx 2>/dev/null || true
+fi
+
 echo "===> Inspecting OpenResty / Nginx setup on host..."
 sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
 
 echo "===> Checking listening ports on host (80, 443, 4820)..."
 sudo ss -tulpn | grep -E ':80 |:443 |:4820 ' || true
-
-echo "===> Configuring Caddyfile for links.avari.dev with proper cache headers..."
-if [ -f /etc/caddy/Caddyfile ]; then
-    sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDY_EOF'
-links.avari.dev, http://links.avari.dev {
-    handle /api/* {
-        reverse_proxy localhost:4820
-    }
-    handle /s/* {
-        reverse_proxy localhost:4820
-    }
-    handle /healthz {
-        reverse_proxy localhost:4820
-    }
-    handle /swagger/* {
-        reverse_proxy localhost:4820
-    }
-    handle {
-        root * /var/www/avari-links/frontend
-        @index path / /index.html
-        header @index Cache-Control "no-cache, no-store, must-revalidate"
-        @assets path /assets/*
-        header @assets Cache-Control "public, max-age=31536000, immutable"
-        try_files {path} /index.html
-        file_server
-    }
-    encode gzip zstd
-}
-CADDY_EOF
-fi
-
-echo "===> Restarting and reloading Caddy web server..."
-sudo systemctl restart caddy 2>/dev/null || sudo systemctl reload caddy 2>/dev/null || sudo caddy reload --config /etc/caddy/Caddyfile 2>/dev/null || true
 
 echo "===> Verifying service health..."
 sleep 2
@@ -152,8 +135,9 @@ sudo systemctl is-active avari-links.service
 curl -s -f http://127.0.0.1:4820/healthz
 echo ''
 
-echo "===> Testing HTTPS serving via Caddy with proper SNI resolution:"
-curl -s --resolve "links.avari.dev:443:127.0.0.1" https://links.avari.dev/ | grep -E "assets/index" || true
+echo "===> Testing HTTP/HTTPS serving via OpenResty:"
+curl -s http://127.0.0.1/ | grep -E "assets/index" || true
+curl -s --resolve "links.avari.dev:443:127.0.0.1" https://links.avari.dev/ 2>/dev/null | grep -E "assets/index" || true
 echo 'Remote deployment to 176.53.174.118 successful!'
 REMOTE_INSTALL_EOF
 
