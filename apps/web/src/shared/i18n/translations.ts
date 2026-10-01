@@ -55,7 +55,7 @@ export const translations = {
       linkCreatedHold: 'Ссылка успешно создана',
       validation: {
         urlRequired: 'Укажите адрес назначения',
-        urlInvalid: 'Укажите корректный URL с http:// или https://',
+        urlInvalid: 'Укажите корректный URL (например, example.com или https://example.com)',
         titleMax: 'Название не должно превышать 120 символов',
         codeMax: 'Код не должен превышать 30 символов',
         codeFormat: 'Код: от 8 до 30 латинских букв, цифр, дефисов или подчёркиваний',
@@ -257,7 +257,7 @@ export const translations = {
       linkCreatedHold: 'Link created successfully',
       validation: {
         urlRequired: 'Destination URL is required',
-        urlInvalid: 'Please provide a valid URL starting with http:// or https://',
+        urlInvalid: 'Please provide a valid URL (e.g. example.com or https://example.com)',
         titleMax: 'Title must not exceed 120 characters',
         codeMax: 'Slug must not exceed 30 characters',
         codeFormat: 'Slug: 8 to 30 latin letters, digits, hyphens, or underscores',
