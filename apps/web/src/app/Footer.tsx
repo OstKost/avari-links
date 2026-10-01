@@ -1,5 +1,6 @@
 import { Github, Database, Cpu, ShieldCheck, Zap } from 'lucide-react';
 import { useTranslation } from '@/shared/i18n';
+import { APP_VERSION } from '@/shared/config/version';
 
 export function Footer() {
   const { t } = useTranslation();
@@ -66,7 +67,15 @@ export function Footer() {
         </div>
 
         <div className="pt-6 border-t border-[var(--av-border-subtle)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs avari-muted">
-          <span>&copy; {new Date().getFullYear()} Avari Links. {t.footer.copyright}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span>&copy; {new Date().getFullYear()} Avari Links. {t.footer.copyright}</span>
+            <span
+              data-testid="app-version"
+              className="inline-flex items-center px-1.5 py-0.5 rounded font-mono text-[11px] font-medium bg-[var(--av-surface-hover)] border border-[var(--av-border-subtle)] text-[var(--av-cyan)]"
+            >
+              {APP_VERSION}
+            </span>
+          </div>
           <span className="font-mono">{t.footer.architectureBadge}</span>
         </div>
       </div>
