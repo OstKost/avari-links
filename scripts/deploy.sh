@@ -91,9 +91,15 @@ fi
 echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
 curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 
-echo "===> Configuring Caddyfile for links.avari.dev with proper cache headers..."
+echo "===> Configuring Caddyfile with protocols h1 h2 (avoiding UDP 443 conflict with VPN)..."
 sudo mkdir -p /etc/caddy
 sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDY_EOF'
+{
+    servers {
+        protocols h1 h2
+    }
+}
+
 links.avari.dev, http://links.avari.dev {
     handle /api/* {
         reverse_proxy localhost:4820
@@ -118,22 +124,23 @@ links.avari.dev, http://links.avari.dev {
     }
     encode gzip zstd
 }
+
+keys.avari.dev, http://keys.avari.dev {
+    handle {
+        reverse_proxy localhost:8081
+    }
+    encode gzip zstd
+}
 CADDY_EOF
+
+echo "===> Validating Caddyfile configuration..."
+sudo caddy validate --config /etc/caddy/Caddyfile || true
 
 echo "===> Starting, enabling and restarting Caddy web server..."
 sudo systemctl daemon-reload
-sudo systemctl enable caddy 2>/dev/null || true
-sudo systemctl restart caddy 2>/dev/null || sudo systemctl reload caddy 2>/dev/null || sudo caddy start --config /etc/caddy/Caddyfile 2>/dev/null || true
-
-echo "===> Starting / Reloading OpenResty / Nginx if present..."
-if [ -f /opt/om/nginx/sbin/nginx ]; then
-    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
-    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
-elif which openresty >/dev/null 2>&1; then
-    sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
-elif which nginx >/dev/null 2>&1; then
-    sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
-fi
+sudo systemctl enable caddy || true
+sudo systemctl restart caddy || true
+sudo systemctl status caddy --no-pager || sudo journalctl -u caddy -n 30 --no-pager || true
 
 echo "===> Inspecting OpenResty / Nginx setup on host..."
 sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
