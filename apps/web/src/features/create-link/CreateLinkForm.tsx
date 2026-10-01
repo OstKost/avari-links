@@ -11,6 +11,7 @@ import { Input } from '@/shared/components/Input';
 import { Button } from '@/shared/components/Button';
 import { Switch } from '@/shared/components/Switch';
 import { LinkPreviewCard } from './LinkPreviewCard';
+import { trackEvent } from '@/shared/analytics';
 import { Link2, Sparkles, Tag, Globe, RotateCcw, Check } from 'lucide-react';
 
 export type PreviewStatus = 'idle' | 'inspecting' | 'success' | 'failed';
@@ -191,6 +192,12 @@ export function CreateLinkForm({
           is_nsfw: effectiveNSFW,
         });
 
+        trackEvent('link_create_success', {
+          is_nsfw: Boolean(effectiveNSFW),
+          has_custom_slug: Boolean(currentData.custom_code),
+          has_title: Boolean(effectiveTitle),
+        });
+
         startSuccessHold();
         reset();
         setIsNSFWForced(false);
@@ -200,6 +207,7 @@ export function CreateLinkForm({
         onPreviewStateChange?.(res, false, urlToCheck);
       }
     } catch (err: unknown) {
+      trackEvent('link_create_error');
       const isKnown = isKnownNSFWUrl(urlToCheck) || isKnownNSFWUrl(normalizedUrl);
       if (isKnown) {
         setValue('is_nsfw', true);
@@ -225,6 +233,11 @@ export function CreateLinkForm({
     const normalizedUrl = normalizeUrlInput(trimmedUrl);
     const effectiveNSFW = isNSFWForced || data.is_nsfw || isKnownNSFWUrl(normalizedUrl);
 
+    trackEvent('link_create_attempt', {
+      is_nsfw: Boolean(effectiveNSFW),
+      has_custom_slug: Boolean(data.custom_code),
+    });
+
     // If already failed and user clicks submit again -> Force create
     if (previewStatus === 'failed' && (inspectedUrl === trimmedUrl || inspectedUrl === normalizedUrl)) {
       try {
@@ -234,11 +247,18 @@ export function CreateLinkForm({
           custom_code: data.custom_code || undefined,
           is_nsfw: effectiveNSFW,
         });
+        trackEvent('link_create_success', {
+          is_nsfw: Boolean(effectiveNSFW),
+          has_custom_slug: Boolean(data.custom_code),
+          has_title: Boolean(data.title),
+          forced: true,
+        });
         startSuccessHold();
         reset();
         setIsNSFWForced(false);
         onSuccess?.();
       } catch {
+        trackEvent('link_create_error');
         // Handled by TanStack Query onError toast
       }
       return;

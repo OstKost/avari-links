@@ -197,6 +197,11 @@ export const translations = {
       closeModal: 'Закрыть окно',
       closePreview: 'Закрыть предпросмотр',
     },
+    seo: {
+      title: 'Avari Links — короткие ссылки и точный контроль',
+      description:
+        'Создавайте короткие ссылки, следите за переходами и делитесь QR-кодами в Avari Links.',
+    },
   },
   en: {
     navbar: {
@@ -393,6 +398,11 @@ export const translations = {
     common: {
       closeModal: 'Close modal',
       closePreview: 'Close preview',
+    },
+    seo: {
+      title: 'Avari Links — Short URLs & Precise Control',
+      description:
+        'Create short links, track real-time click analytics, and share QR codes in Avari Links.',
     },
   },
 } as const;

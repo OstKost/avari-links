@@ -87,6 +87,9 @@ jobs:
 
       - name: Build React Bundle
         working-directory: apps/web
+        env:
+          VITE_YM_COUNTER_ID: ${{ secrets.VITE_YM_COUNTER_ID || vars.VITE_YM_COUNTER_ID || '113244262' }}
+          VITE_YM_WEBVISOR: ${{ secrets.VITE_YM_WEBVISOR || vars.VITE_YM_WEBVISOR || 'true' }}
         run: pnpm run build
 
       - name: Archive Bundle
@@ -161,6 +164,9 @@ jobs:
           push: true
           tags: ${{ steps.meta-web.outputs.tags }}
           labels: ${{ steps.meta-web.outputs.labels }}
+          build-args: |
+            VITE_YM_COUNTER_ID=${{ secrets.VITE_YM_COUNTER_ID || vars.VITE_YM_COUNTER_ID || '113244262' }}
+            VITE_YM_WEBVISOR=${{ secrets.VITE_YM_WEBVISOR || vars.VITE_YM_WEBVISOR || 'true' }}
 
   create-github-release:
     name: Publish GitHub Release

@@ -7,8 +7,10 @@ import { QRCodeModal } from '@/features/qr-modal/QRCodeModal';
 import { SessionModal } from '@/features/session/SessionModal';
 import { useAppStore } from '@/shared/store/app-store';
 import { useCreateSession } from '@/entities/session/queries';
+import { useSeoHead } from '@/shared/hooks/use-seo-head';
 
 export function App() {
+  useSeoHead();
   const sessionKey = useAppStore((s) => s.sessionKey);
   const createSessionMutation = useCreateSession();
 

@@ -202,6 +202,8 @@ jobs:
           SERVER_HOST: ${{ secrets.SERVER_HOST || '176.53.174.118' }}
           SERVER_USER: ${{ secrets.SERVER_USER || 'user' }}
           SERVER_PORT: ${{ secrets.SERVER_PORT || '22' }}
+          VITE_YM_COUNTER_ID: ${{ secrets.VITE_YM_COUNTER_ID || vars.VITE_YM_COUNTER_ID || '113244262' }}
+          VITE_YM_WEBVISOR: ${{ secrets.VITE_YM_WEBVISOR || vars.VITE_YM_WEBVISOR || 'true' }}
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_deploy

@@ -4,12 +4,121 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#091416" />
+    <meta name="color-scheme" content="dark light" />
+
+    <!-- Primary Meta Tags -->
     <title>Avari Links — короткие ссылки и точный контроль</title>
-    <meta name="description" content="Создавайте короткие ссылки, следите за переходами и делитесь QR-кодами в Avari Links." />
+    <meta name="title" content="Avari Links — короткие ссылки и точный контроль" />
+    <meta name="description" content="Создавайте короткие ссылки, следите за переходами и делитесь QR-кодами в Avari Links. Мгновенный редирект, защита контента и детальная аналитика." />
+    <meta name="keywords" content="короткие ссылки, сокращение ссылок, url shortener, qr код, аналитика переходов, генератор коротких ссылок, fast redirect, custom slug" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="author" content="Avari Team" />
+
+    <!-- Canonical & Alternate Hreflang -->
+    <link rel="canonical" href="https://links.avari.dev/" />
+    <link rel="alternate" hreflang="ru" href="https://links.avari.dev/" />
+    <link rel="alternate" hreflang="en" href="https://links.avari.dev/?lang=en" />
+    <link rel="alternate" hreflang="x-default" href="https://links.avari.dev/" />
+
+    <!-- GEO Meta Tags -->
+    <meta name="geo.region" content="RU" />
+    <meta name="geo.placename" content="Global" />
+    <meta name="geo.position" content="55.7558;37.6173" />
+    <meta name="ICBM" content="55.7558, 37.6173" />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://links.avari.dev/" />
+    <meta property="og:site_name" content="Avari Links" />
+    <meta property="og:title" content="Avari Links — короткие ссылки и точный контроль" />
+    <meta property="og:description" content="Создавайте короткие ссылки, следите за переходами и делитесь QR-кодами в Avari Links. Мгновенный редирект и детальная аналитика." />
+    <meta property="og:image" content="https://links.avari.dev/assets/logo_detailed.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter Cards -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content="https://links.avari.dev/" />
+    <meta name="twitter:title" content="Avari Links — короткие ссылки и точный контроль" />
+    <meta name="twitter:description" content="Создавайте короткие ссылки, следите за переходами и делитесь QR-кодами в Avari Links. Мгновенный редирект и аналитика переходов." />
+    <meta name="twitter:image" content="https://links.avari.dev/assets/logo_detailed.png" />
+
+    <!-- Web App & Icons -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Avari Links" />
+    <meta name="application-name" content="Avari Links" />
+
+    <!-- Preconnect & Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://mc.yandex.ru" crossorigin />
+    <link rel="preconnect" href="https://www.googletagmanager.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&family=Philosopher:wght@400;700&family=Victor+Mono:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+
+    <!-- Structured Data: WebApplication -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "Avari Links",
+      "url": "https://links.avari.dev/",
+      "description": "Сервис создания коротких ссылок с защитой контента, аналитикой переходов и генерацией QR-кодов.",
+      "applicationCategory": "UtilitiesApplication",
+      "operatingSystem": "All",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "featureList": [
+        "Создание коротких ссылок за секунды",
+        "Кастомные короткие адреса (slug)",
+        "Генерация и скачивание QR-кодов",
+        "Асинхронная аналитика кликов и переходов",
+        "Защита ссылок с материалами 18+ (NSFW)"
+      ]
+    }
+    </script>
+
+    <!-- Structured Data: FAQPage -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Как создать короткую ссылку в Avari Links?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Вставьте исходный URL в поле на главной странице, при необходимости укажите свой код или название, и нажмите «Создать короткую ссылку»."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Сколько времени хранятся созданные ссылки?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Ссылки хранятся бессрочно, пока вы или ваши посетители ими пользуетесь. При отсутствии активности более 100 дней неактивные ссылки автоматически очищаются."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Как получить QR-код для ссылки?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Для любой созданной ссылки доступна кнопка QR-кода. Вы можете сразу отсканировать его или скачать в формате PNG высокой четкости."
+          }
+        }
+      ]
+    }
+    </script>
   </head>
   <body class="min-h-screen antialiased">
     <div id="root"></div>

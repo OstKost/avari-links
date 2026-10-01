@@ -23,7 +23,13 @@ mkdir -p bin
 
 # 2. Build Frontend bundle
 echo "===> Building Web bundle..."
-(cd apps/web && pnpm install --frozen-lockfile && pnpm run build)
+(cd apps/web && \
+  VITE_YM_COUNTER_ID="${VITE_YM_COUNTER_ID:-113244262}" \
+  VITE_YM_WEBVISOR="${VITE_YM_WEBVISOR:-true}" \
+  pnpm install --frozen-lockfile && \
+  VITE_YM_COUNTER_ID="${VITE_YM_COUNTER_ID:-113244262}" \
+  VITE_YM_WEBVISOR="${VITE_YM_WEBVISOR:-true}" \
+  pnpm run build)
 
 # 3. Create deploy package in temp directory
 TEMP_DIR=$(mktemp -d)
@@ -53,42 +59,20 @@ sudo cp -r "${SCRIPT_DIR}/web/"* /var/www/avari-links/frontend/
 sudo chmod -R 755 /var/www/avari-links/frontend
 sudo chown -R caddy:caddy /var/www/avari-links/frontend 2>/dev/null || sudo chown -R www-data:www-data /var/www/avari-links/frontend 2>/dev/null || true
 
-echo "===> Searching for all OpenResty site configs and roots..."
-# Find all configs for links.avari.dev
+echo "===> Searching for OpenResty site configs and roots for links.avari.dev..."
+# Find configs strictly for links.avari.dev
 for conf in $(grep -rnwl "links.avari.dev" /opt/om/nginx/conf/ /etc/nginx/ /opt/om/ 2>/dev/null || true); do
-    echo "Found site config: ${conf}"
+    echo "Found site config for links.avari.dev: ${conf}"
     # Read root directory if present
     SITE_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' "${conf}" 2>/dev/null | tr -d ' ' || true)
     if [ -n "${SITE_ROOT}" ] && [ -d "${SITE_ROOT}" ]; then
-        echo "Updating OpenResty site root: ${SITE_ROOT}"
+        echo "Updating OpenResty site root for links.avari.dev: ${SITE_ROOT}"
         sudo rm -rf "${SITE_ROOT}/"*
         sudo cp -r "${SCRIPT_DIR}/web/"* "${SITE_ROOT}/"
     fi
     # Point upstream to 6 (port 4820)
     sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" "${conf}" 2>/dev/null || true
 done
-
-echo "===> Searching for old bundles across filesystem..."
-sudo find / -name "index-BfaES30I.js" 2>/dev/null | while read -r old_file; do
-    BUNDLE_DIR="$(dirname "$(dirname "$old_file")")"
-    echo "Found old bundle at ${old_file}, syncing ${BUNDLE_DIR}..."
-    sudo cp -r "${SCRIPT_DIR}/web/"* "${BUNDLE_DIR}/"
-done
-
-# Check Docker containers
-if which docker >/dev/null 2>&1; then
-    echo "===> Checking Docker containers on host:"
-    sudo docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}" || true
-    for cid in $(sudo docker ps -q); do
-        cname=$(sudo docker inspect --format '{{.Name}}' "$cid" 2>/dev/null || true)
-        echo "Inspecting container: ${cname}"
-        # Copy web assets into container if it has /var/www or /opt/om or nginx html
-        sudo docker cp "${SCRIPT_DIR}/web/." "${cid}:/var/www/avari-links/frontend/" 2>/dev/null || true
-        sudo docker cp "${SCRIPT_DIR}/web/." "${cid}:/opt/om/sites/3/html/" 2>/dev/null || true
-        # Reload nginx in container if possible
-        sudo docker exec "$cid" openresty -s reload 2>/dev/null || sudo docker exec "$cid" nginx -s reload 2>/dev/null || true
-    done
-fi
 
 echo "===> Configuring systemd service..."
 sudo cp "${SCRIPT_DIR}/avari-links.service" /etc/systemd/system/avari-links.service

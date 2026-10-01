@@ -9,6 +9,19 @@ COPY package.json pnpm-lock.yaml* ./
 RUN pnpm install --frozen-lockfile || pnpm install
 
 COPY . .
+
+ARG VITE_API_BASE_URL
+ARG VITE_SITE_URL
+ARG VITE_YM_COUNTER_ID
+ARG VITE_GA_MEASUREMENT_ID
+ARG VITE_YM_WEBVISOR=true
+
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_SITE_URL=$VITE_SITE_URL \
+    VITE_YM_COUNTER_ID=$VITE_YM_COUNTER_ID \
+    VITE_GA_MEASUREMENT_ID=$VITE_GA_MEASUREMENT_ID \
+    VITE_YM_WEBVISOR=$VITE_YM_WEBVISOR
+
 RUN pnpm run build
 
 # Production Runtime Stage (Nginx)

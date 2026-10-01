@@ -6,6 +6,7 @@ import { useToggleLinkStatus, useDeleteLink } from '@/entities/link/queries';
 import { useCopyToClipboard } from '@/shared/hooks/use-copy';
 import { useAppStore } from '@/shared/store/app-store';
 import { useTranslation } from '@/shared/i18n';
+import { trackEvent } from '@/shared/analytics';
 import {
   Copy,
   Check,
@@ -33,6 +34,7 @@ export function LinkCard({ link }: LinkCardProps) {
   const handleDelete = () => {
     if (window.confirm(t.linkCard.deleteConfirm(link.title || link.code))) {
       deleteLink.mutate(link.id);
+      trackEvent('link_delete', { id: link.id, code: link.code });
     }
   };
 
@@ -118,9 +120,11 @@ export function LinkCard({ link }: LinkCardProps) {
           <Button
             variant="ghost"
             size="sm"
-            onClick={() =>
-              toggleStatus.mutate({ id: link.id, isActive: !link.is_active })
-            }
+            onClick={() => {
+              const nextStatus = !link.is_active;
+              toggleStatus.mutate({ id: link.id, isActive: nextStatus });
+              trackEvent('link_status_toggle', { id: link.id, is_active: nextStatus });
+            }}
             title={link.is_active ? t.linkCard.pauseLink : t.linkCard.activateLink}
             aria-label={link.is_active ? t.linkCard.pauseLink : t.linkCard.activateLink}
             className={link.is_active ? 'text-[var(--av-warning)]' : 'text-[var(--av-success)]'}

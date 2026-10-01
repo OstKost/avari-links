@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /s/
+
+Sitemap: https://links.avari.dev/sitemap.xml
+Host: https://links.avari.dev

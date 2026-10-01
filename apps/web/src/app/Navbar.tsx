@@ -4,6 +4,7 @@ import { useTranslation } from '@/shared/i18n';
 import { AvariLogo } from '@/shared/components/AvariLogo';
 import { UserAvatar } from '@/shared/components/UserAvatar';
 import { Sun, Moon, Github, Sparkles, Languages, ChevronDown, Link2 } from 'lucide-react';
+import { trackEvent } from '@/shared/analytics';
 
 export function Navbar() {
   const { theme, toggleTheme, setSessionModalOpen, sessionKey } = useAppStore();
@@ -76,7 +77,11 @@ export function Navbar() {
             {/* Language Switcher */}
             <button
               type="button"
-              onClick={toggleLanguage}
+              onClick={() => {
+                const nextLang = language === 'ru' ? 'en' : 'ru';
+                toggleLanguage();
+                trackEvent('lang_switch', { lang: nextLang });
+              }}
               className="inline-flex items-center gap-1.5 px-2 sm:px-2.5 h-8 rounded-lg text-xs font-mono font-medium text-[var(--av-text-secondary)] hover:text-[var(--av-text)] hover:bg-[var(--av-surface-raised)]/90 avari-interactive select-none group"
               aria-label={t.navbar.switchLanguage}
               title={language === 'ru' ? 'Switch to English' : 'Переключить на русский'}
@@ -88,7 +93,11 @@ export function Navbar() {
             {/* Theme Switcher */}
             <button
               type="button"
-              onClick={toggleTheme}
+              onClick={() => {
+                const nextTheme = theme === 'dark' ? 'light' : 'dark';
+                toggleTheme();
+                trackEvent('theme_toggle', { theme: nextTheme });
+              }}
               className="inline-flex items-center justify-center w-8 h-8 rounded-lg text-[var(--av-text-secondary)] hover:text-[var(--av-text)] hover:bg-[var(--av-surface-raised)]/90 avari-interactive select-none group"
               aria-label={theme === 'dark' ? t.navbar.switchToLight : t.navbar.switchToDark}
               title={theme === 'dark' ? t.navbar.themeLight : t.navbar.themeDark}

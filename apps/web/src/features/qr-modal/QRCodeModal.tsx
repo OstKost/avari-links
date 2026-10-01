@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { Modal } from '@/shared/components/Modal';
 import { Button } from '@/shared/components/Button';
 import { useAppStore } from '@/shared/store/app-store';
@@ -6,6 +6,7 @@ import { useTranslation } from '@/shared/i18n';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Download, Copy, ExternalLink } from 'lucide-react';
 import { useCopyToClipboard } from '@/shared/hooks/use-copy';
+import { trackEvent } from '@/shared/analytics';
 import { toast } from 'sonner';
 
 export function QRCodeModal() {
@@ -13,6 +14,12 @@ export function QRCodeModal() {
   const { t, language } = useTranslation();
   const { copy } = useCopyToClipboard();
   const qrRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedQRLink) {
+      trackEvent('qr_modal_open', { code: selectedQRLink.code });
+    }
+  }, [selectedQRLink]);
 
   if (!selectedQRLink) return null;
 
@@ -28,6 +35,7 @@ export function QRCodeModal() {
     anchor.href = image;
     anchor.download = `qrcode-${selectedQRLink.code}.png`;
     anchor.click();
+    trackEvent('qr_download', { code: selectedQRLink.code, format: 'png' });
     toast.success(t.qrModal.downloadSuccess);
   };
 

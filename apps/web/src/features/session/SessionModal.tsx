@@ -8,6 +8,7 @@ import { useAppStore, MAX_SESSION_REROLLS } from '@/shared/store/app-store';
 import { useTranslation } from '@/shared/i18n';
 import { useRestoreSession, useCreateSession, useSessionMe } from '@/entities/session/queries';
 import { KeyRound, Copy, Check, ShieldAlert, Sparkles, RefreshCw, ArrowRight, Dices, AlertTriangle } from 'lucide-react';
+import { trackEvent } from '@/shared/analytics';
 import { toast } from 'sonner';
 
 export function SessionModal() {
@@ -27,6 +28,7 @@ export function SessionModal() {
     if (!sessionKey) return;
     navigator.clipboard.writeText(sessionKey);
     setCopied(true);
+    trackEvent('session_key_copy');
     toast.success(t.sessionModal.copiedToast);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -35,11 +37,16 @@ export function SessionModal() {
     e.preventDefault();
     const clean = inputKey.trim();
     if (!clean) return;
+    trackEvent('session_restore_attempt');
     restoreMutation.mutate(clean, {
       onSuccess: () => {
+        trackEvent('session_restore_success');
         setInputKey('');
         setShowRerollWarning(false);
         setSessionModalOpen(false);
+      },
+      onError: () => {
+        trackEvent('session_restore_error');
       },
     });
   };
@@ -49,6 +56,7 @@ export function SessionModal() {
       onSuccess: (data) => {
         incrementRerolls();
         setShowRerollWarning(false);
+        trackEvent('session_reroll');
         if (data?.access_key) {
           toast.success(t.sessionModal.rerollSuccess(data.access_key));
         } else {
