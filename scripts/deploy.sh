@@ -91,34 +91,48 @@ fi
 echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
 curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 
-echo "===> Stopping and disabling Caddy (preserving configs, switching to OpenResty)..."
-sudo systemctl stop caddy 2>/dev/null || true
-sudo systemctl disable caddy 2>/dev/null || true
+echo "===> Configuring Caddyfile for links.avari.dev with proper cache headers..."
+sudo mkdir -p /etc/caddy
+sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDY_EOF'
+links.avari.dev, http://links.avari.dev {
+    handle /api/* {
+        reverse_proxy localhost:4820
+    }
+    handle /s/* {
+        reverse_proxy localhost:4820
+    }
+    handle /healthz {
+        reverse_proxy localhost:4820
+    }
+    handle /swagger/* {
+        reverse_proxy localhost:4820
+    }
+    handle {
+        root * /var/www/avari-links/frontend
+        @index path / /index.html
+        header @index Cache-Control "no-cache, no-store, must-revalidate"
+        @assets path /assets/*
+        header @assets Cache-Control "public, max-age=31536000, immutable"
+        try_files {path} /index.html
+        file_server
+    }
+    encode gzip zstd
+}
+CADDY_EOF
 
-echo "===> Diagnosing OpenResty / Nginx binaries and services on host..."
-which openresty nginx 2>/dev/null || true
-systemctl list-unit-files | grep -E 'openresty|nginx|om|1panel|caddy' || true
+echo "===> Starting, enabling and restarting Caddy web server..."
+sudo systemctl daemon-reload
+sudo systemctl enable caddy 2>/dev/null || true
+sudo systemctl restart caddy 2>/dev/null || sudo systemctl reload caddy 2>/dev/null || sudo caddy start --config /etc/caddy/Caddyfile 2>/dev/null || true
 
-echo "===> Searching for OpenResty/Nginx binaries on filesystem..."
-find /usr /opt /etc -name "openresty" -o -name "nginx" 2>/dev/null || true
-
-echo "===> Checking OpenResty / Nginx service status..."
-sudo systemctl status openresty --no-pager 2>/dev/null || sudo systemctl status nginx --no-pager 2>/dev/null || true
-
-echo "===> Starting OpenResty / Nginx..."
+echo "===> Starting / Reloading OpenResty / Nginx if present..."
 if [ -f /opt/om/nginx/sbin/nginx ]; then
-    echo "Found /opt/om/nginx/sbin/nginx, testing config:"
-    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf || true
-    echo "Starting /opt/om/nginx/sbin/nginx..."
-    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload || true
+    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
+    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
 elif which openresty >/dev/null 2>&1; then
-    echo "Found openresty CLI, testing config:"
-    sudo openresty -t || true
-    sudo systemctl restart openresty || sudo systemctl start openresty || sudo openresty || true
+    sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
 elif which nginx >/dev/null 2>&1; then
-    echo "Found nginx CLI, testing config:"
-    sudo nginx -t || true
-    sudo systemctl restart nginx || sudo systemctl start nginx || sudo nginx || true
+    sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
 fi
 
 echo "===> Inspecting OpenResty / Nginx setup on host..."
