@@ -39,6 +39,7 @@ mkdir -p "${TEMP_DIR}/web"
 cp -r apps/web/dist/* "${TEMP_DIR}/web/"
 cp bin/avari-api-linux-amd64 "${TEMP_DIR}/avari-links"
 cp deployments/systemd/avari-links.service "${TEMP_DIR}/avari-links.service"
+cp deployments/openresty/openresty.conf "${TEMP_DIR}/openresty.conf"
 
 cat << 'REMOTE_INSTALL_EOF' > "${TEMP_DIR}/remote-install.sh"
 #!/usr/bin/env bash
@@ -57,21 +58,32 @@ echo "===> Installing frontend assets to /var/www/avari-links/frontend..."
 sudo rm -rf /var/www/avari-links/frontend/*
 sudo cp -r "${SCRIPT_DIR}/web/"* /var/www/avari-links/frontend/
 sudo chmod -R 755 /var/www/avari-links/frontend
-sudo chown -R caddy:caddy /var/www/avari-links/frontend 2>/dev/null || sudo chown -R www-data:www-data /var/www/avari-links/frontend 2>/dev/null || true
+sudo chown -R www-data:www-data /var/www/avari-links/frontend 2>/dev/null || true
 
-echo "===> Searching for OpenResty site configs and roots for links.avari.dev..."
-# Find configs strictly for links.avari.dev
-for conf in $(grep -rnwl "links.avari.dev" /opt/om/nginx/conf/ /etc/nginx/ /opt/om/ 2>/dev/null || true); do
-    echo "Found site config for links.avari.dev: ${conf}"
-    # Read root directory if present
-    SITE_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' "${conf}" 2>/dev/null | tr -d ' ' || true)
-    if [ -n "${SITE_ROOT}" ] && [ -d "${SITE_ROOT}" ]; then
-        echo "Updating OpenResty site root for links.avari.dev: ${SITE_ROOT}"
-        sudo rm -rf "${SITE_ROOT}/"*
-        sudo cp -r "${SCRIPT_DIR}/web/"* "${SITE_ROOT}/"
+echo "===> Configuring OpenResty site for links.avari.dev..."
+if [ -d /opt/om/nginx/conf/sites ]; then
+    # If LetsEncrypt cert path doesn't exist, check for existing cert in /opt/om
+    if ! sudo test -s /etc/letsencrypt/live/links.avari.dev/fullchain.pem; then
+        EXISTING_CERT=$(sudo find /opt/om /etc/letsencrypt /var/www -name "*links.avari.dev*fullchain.pem" -o -name "*links.avari.dev*.crt" 2>/dev/null | head -n 1 || true)
+        if [ -n "${EXISTING_CERT}" ]; then
+            EXISTING_KEY=$(sudo find /opt/om /etc/letsencrypt /var/www -name "*links.avari.dev*privkey.pem" -o -name "*links.avari.dev*.key" 2>/dev/null | head -n 1 || true)
+            sed -i "s|/etc/letsencrypt/live/links.avari.dev/fullchain.pem|${EXISTING_CERT}|g" "${SCRIPT_DIR}/openresty.conf"
+            sed -i "s|/etc/letsencrypt/live/links.avari.dev/privkey.pem|${EXISTING_KEY}|g" "${SCRIPT_DIR}/openresty.conf"
+        fi
     fi
-    # Point upstream to 6 (port 4820)
-    sudo sed -i "s|proxy_pass 'http://[0-9]*/';|proxy_pass 'http://6/';|g" "${conf}" 2>/dev/null || true
+    sudo cp "${SCRIPT_DIR}/openresty.conf" /opt/om/nginx/conf/sites/links-avari-dev.conf
+    echo "Installed /opt/om/nginx/conf/sites/links-avari-dev.conf"
+fi
+
+echo "===> Updating existing site configs and root directories..."
+for conf in $(grep -rnwl "links.avari.dev" /opt/om/nginx/conf/sites/ /etc/nginx/ /opt/om/ 2>/dev/null || true); do
+    echo "Inspecting site config for links.avari.dev: ${conf}"
+    OLD_ROOT=$(grep -oP '^\s*root\s+\K[^;]+' "${conf}" 2>/dev/null | tr -d ' ' || true)
+    if [ -n "${OLD_ROOT}" ] && [ -d "${OLD_ROOT}" ] && [ "${OLD_ROOT}" != "/var/www/avari-links/frontend" ]; then
+        echo "Updating static files in site root: ${OLD_ROOT}"
+        sudo rm -rf "${OLD_ROOT}/"*
+        sudo cp -r "${SCRIPT_DIR}/web/"* "${OLD_ROOT}/"
+    fi
 done
 
 echo "===> Configuring systemd service..."
@@ -80,29 +92,17 @@ sudo systemctl daemon-reload
 sudo systemctl enable avari-links.service
 sudo systemctl restart avari-links.service
 
-echo "===> Configuring OpenResty Manager upstream..."
-if [ -d /opt/om/nginx/conf/upstreams ]; then
-    echo 'upstream 6 {
-server 127.0.0.1:4820;
-keepalive 64;
-}' | sudo tee /opt/om/nginx/conf/upstreams/6.conf > /dev/null
-fi
-
-echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
-curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
-
-echo "===> Stopping and disabling Caddy (OpenResty is used as reverse proxy/CDN)..."
+echo "===> Stopping and disabling Caddy..."
 sudo systemctl stop caddy 2>/dev/null || true
 sudo systemctl disable caddy 2>/dev/null || true
 
-echo "===> Starting / Reloading OpenResty / Nginx if present on host..."
-if [ -f /opt/om/nginx/sbin/nginx ]; then
+echo "===> Testing and reloading OpenResty..."
+if which openresty >/dev/null 2>&1; then
+    sudo /usr/bin/openresty -p /opt/om/nginx/ -t 2>/dev/null || sudo openresty -t 2>/dev/null || true
+    sudo /usr/bin/openresty -p /opt/om/nginx/ -s reload 2>/dev/null || sudo openresty -s reload 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
+elif [ -f /opt/om/nginx/sbin/nginx ]; then
     sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
-    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
-elif which openresty >/dev/null 2>&1; then
-    sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
-elif which nginx >/dev/null 2>&1; then
-    sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
+    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || true
 fi
 
 echo "===> Testing local backend static file and API serving on 127.0.0.1:4820..."
