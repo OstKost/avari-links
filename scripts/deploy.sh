@@ -91,80 +91,23 @@ fi
 echo "===> Testing local backend static file serving on 127.0.0.1:4820..."
 curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 
-echo "===> Configuring Caddyfile with protocols h1 h2 (avoiding UDP 443 conflict with VPN)..."
-sudo mkdir -p /etc/caddy
-sudo tee /etc/caddy/Caddyfile > /dev/null << 'CADDY_EOF'
-{
-    servers {
-        protocols h1 h2
-    }
-}
+echo "===> Stopping and disabling Caddy (OpenResty is used as reverse proxy/CDN)..."
+sudo systemctl stop caddy 2>/dev/null || true
+sudo systemctl disable caddy 2>/dev/null || true
 
-links.avari.dev, http://links.avari.dev {
-    handle /api/* {
-        reverse_proxy localhost:4820
-    }
-    handle /s/* {
-        reverse_proxy localhost:4820
-    }
-    handle /healthz {
-        reverse_proxy localhost:4820
-    }
-    handle /swagger/* {
-        reverse_proxy localhost:4820
-    }
-    handle {
-        root * /var/www/avari-links/frontend
-        @index path / /index.html
-        header @index Cache-Control "no-cache, no-store, must-revalidate"
-        @assets path /assets/*
-        header @assets Cache-Control "public, max-age=31536000, immutable"
-        try_files {path} /index.html
-        file_server
-    }
-    encode gzip zstd
-}
-
-keys.avari.dev, http://keys.avari.dev {
-    handle {
-        reverse_proxy localhost:8081
-    }
-    encode gzip zstd
-}
-CADDY_EOF
-
-echo "===> Validating Caddyfile configuration..."
-sudo caddy validate --config /etc/caddy/Caddyfile || true
-
-echo "===> Starting, enabling and restarting Caddy web server..."
-sudo systemctl daemon-reload
-sudo systemctl enable caddy || true
-sudo systemctl restart caddy || true
-sudo systemctl status caddy --no-pager || sudo journalctl -u caddy -n 30 --no-pager || true
-
-echo "===> Inspecting OpenResty / Nginx setup on host..."
-sudo ps aux | grep -E 'nginx|openresty|om' | grep -v grep || true
-
-echo "===> Checking all running systemd services and listening ports..."
-sudo systemctl list-units --type=service --state=running | grep -v "systemd" | head -n 40 || true
-sudo ss -tulpn || true
-
-echo "===> Checking Docker containers on host..."
-if which docker >/dev/null 2>&1; then
-    sudo docker ps -a || true
+echo "===> Starting / Reloading OpenResty / Nginx if present on host..."
+if [ -f /opt/om/nginx/sbin/nginx ]; then
+    sudo /opt/om/nginx/sbin/nginx -t -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
+    sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -s reload 2>/dev/null || sudo /opt/om/nginx/sbin/nginx -p /opt/om/nginx/ -c /opt/om/nginx/conf/nginx.conf 2>/dev/null || true
+elif which openresty >/dev/null 2>&1; then
+    sudo systemctl restart openresty 2>/dev/null || sudo systemctl reload openresty 2>/dev/null || true
+elif which nginx >/dev/null 2>&1; then
+    sudo systemctl restart nginx 2>/dev/null || sudo systemctl reload nginx 2>/dev/null || true
 fi
 
-echo "===> Checking directories in /var/www and /opt:"
-sudo ls -la /var/www/ 2>/dev/null || true
-sudo ls -la /opt/ 2>/dev/null || true
-
-echo "===> Finding all configured domains across configs:"
-sudo grep -rohE '([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}' /etc/caddy/ /etc/nginx/ /opt/om/ /var/www/ 2>/dev/null | sort -u | grep -v '\.local\|\.internal\|example\.com\|localhost\|schema\.org\|w3\.org' | head -n 30 || true
-
-echo "===> Testing HTTP connectivity for local services and links.avari.dev..."
+echo "===> Testing local backend static file and API serving on 127.0.0.1:4820..."
+curl -s http://127.0.0.1:4820/ | grep -E "assets/index" || true
 curl -s -f http://127.0.0.1:4820/healthz && echo " -> avari-links backend (4820) OK" || echo " -> avari-links backend FAIL"
-curl -sI https://links.avari.dev/healthz || true
-curl -sI https://links.avari.dev/api/v1/links || true
 
 echo 'All checks completed successfully!'
 REMOTE_INSTALL_EOF
